@@ -99,26 +99,14 @@ public class AuthController(
     [Authorize]
     [DisableRateLimiting]
     public async Task<ActionResult<MeResponse>> Me(
-        [FromServices] Core.Abstractions.ICurrentUser currentUser, CancellationToken ct)
+        [FromServices] Core.Abstractions.ICurrentUser currentUser,
+        [FromServices] Services.SettingsService settingsService,
+        CancellationToken ct)
     {
         var user = await users.FindByIdAsync(currentUser.UserId.ToString());
         if (user is null) return NotFound();
 
-        // Self-heal: registration is not atomic (Identity saves the user before we save
-        // settings), so a crash in between can leave a user without a settings row.
-        var settings = await db.UserSettings.AsNoTracking()
-            .FirstOrDefaultAsync(s => s.UserId == user.Id, ct);
-        if (settings is null)
-        {
-            settings = new UserSettings
-            {
-                UserId = user.Id,
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow,
-            };
-            db.UserSettings.Add(settings);
-            await db.SaveChangesAsync(ct);
-        }
+        var settings = await settingsService.GetOrCreateAsync(user.Id, ct);
         return new MeResponse(
             new UserDto(user.Id, user.Email!),
             new SettingsDto(settings.LearningLanguage, settings.KnownLanguages, settings.DailyNewLimit));

@@ -53,6 +53,8 @@ builder.Services.AddScoped<TokenService>();
 builder.Services.AddScoped<RefreshTokenService>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUser, CurrentUser>();
+builder.Services.AddScoped<AnkiLearner.Api.Services.SettingsService>();
+builder.Services.AddSingleton<IContentSanitizer, AnkiLearner.Infrastructure.ContentSanitizer>();
 
 // --- Rate limiting for credential endpoints (spec §8) ---
 // NOTE for the deploy phase: behind a reverse proxy, RemoteIpAddress is the proxy's
