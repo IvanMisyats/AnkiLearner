@@ -77,7 +77,7 @@ AnkiLearner/                  # repo root
     SPECIFICATION.md          # detailed functional + technical spec
     IMPLEMENTATION_PLAN.md    # phased plan for implementing agents
   backend/
-    AnkiLearner.sln
+    AnkiLearner.slnx          # solution (new XML format; dotnet sln commands work with it)
     AnkiLearner.Api/          # controllers, DI, auth, middleware, Program.cs
     AnkiLearner.Core/         # domain entities, enums, DTOs, SRS engine, provider interfaces
     AnkiLearner.Infrastructure/  # EF Core DbContext + migrations, Claude provider, Anki importer

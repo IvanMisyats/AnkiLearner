@@ -1,0 +1,7 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\AnkiLearner.Core\AnkiLearner.Core.csproj" />
+  </ItemGroup>
+
+</Project>

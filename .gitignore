@@ -39,6 +39,19 @@ ScaffoldingReadMe.txt
 # dotenv environment variables file
 .env
 
+# Node / Angular
+node_modules/
+dist/
+.angular/
+npm-debug.log*
+
+# IDE
+.vs/
+.idea/
+
+# Local data
+*.apkg
+
 # Others
 ~$*
 *~

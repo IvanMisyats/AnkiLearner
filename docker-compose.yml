@@ -1,0 +1,25 @@
+# Local development: only the database runs in Docker.
+# Backend: dotnet run --project backend/AnkiLearner.Api
+# Frontend: npm start (from frontend/)
+# Production packaging (api + frontend images) is a later phase.
+services:
+  db:
+    image: postgres:16
+    container_name: ankilearner-db
+    environment:
+      POSTGRES_USER: ankilearner
+      POSTGRES_PASSWORD: ankilearner  # local dev only — override in production
+      POSTGRES_DB: ankilearner
+    ports:
+      # Host port 5433: 5432 is commonly taken by other local Postgres instances
+      - "5433:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ankilearner"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  db-data:

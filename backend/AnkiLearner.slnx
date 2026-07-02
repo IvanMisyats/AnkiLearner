@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="AnkiLearner.Api/AnkiLearner.Api.csproj" />
+  <Project Path="AnkiLearner.Core/AnkiLearner.Core.csproj" />
+  <Project Path="AnkiLearner.Infrastructure/AnkiLearner.Infrastructure.csproj" />
+  <Project Path="AnkiLearner.Tests/AnkiLearner.Tests.csproj" />
+</Solution>
