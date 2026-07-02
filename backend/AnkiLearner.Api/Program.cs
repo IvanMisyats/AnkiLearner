@@ -95,6 +95,7 @@ builder.Services.AddRateLimiter(o =>
 });
 
 builder.Services.AddHealthChecks();
+builder.Services.AddMemoryCache(); // staged .apkg imports between preview and commit
 
 var app = builder.Build();
 

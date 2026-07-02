@@ -40,11 +40,15 @@ export const routes: Routes = [
           import('./features/words/word-form.component').then((m) => m.WordFormComponent),
       },
       {
+        path: 'import',
+        loadComponent: () =>
+          import('./features/import/import.component').then((m) => m.ImportComponent),
+      },
+      {
         path: 'settings',
         loadComponent: () =>
           import('./features/settings/settings.component').then((m) => m.SettingsComponent),
       },
-      // /import is added in Phase 8.
     ],
   },
   { path: '**', redirectTo: '' },

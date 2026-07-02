@@ -92,6 +92,20 @@ export interface WordLookupResult {
   exampleTranslations: Record<string, string>;
 }
 
+export interface ImportPreviewResponse {
+  importId: string;
+  total: number;
+  new: number;
+  duplicates: number;
+  withProgress: number;
+  skipped: string[];
+}
+
+export interface ImportCommitResponse {
+  imported: number;
+  statesImported: number;
+}
+
 export type ExerciseType = 'TargetToKnown' | 'KnownToTarget';
 export type ReviewGrade = 'Again' | 'Hard' | 'Good' | 'Easy';
 

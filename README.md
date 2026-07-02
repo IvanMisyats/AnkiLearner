@@ -47,6 +47,7 @@ cd frontend && npm install && npm start        # SPA on http://localhost:4200, p
 | `RateLimiting:LookupPerMinute` | no | `20` | Per-user limit on AI lookups |
 | `Anthropic:ApiKey` | no | *(empty — AI lookup disabled)* | Server-level Claude API key; the bare `ANTHROPIC_API_KEY` env var also works |
 | `Anthropic:Model` | no | `claude-haiku-4-5` | Model used for word lookup |
+| `Import:MaxUploadBytes` | no | `52428800` (50 MB) | Size cap for uploaded `.apkg` files |
 
 All keys can be provided as environment variables (`Jwt__SigningKey=...`) or via
 `dotnet user-secrets` in development. The API refuses to start without a valid signing key.

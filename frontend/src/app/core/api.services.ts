@@ -4,6 +4,8 @@ import { Observable } from 'rxjs';
 import {
   DuplicateCheckResponse,
   ExerciseType,
+  ImportCommitResponse,
+  ImportPreviewResponse,
   Language,
   LookupStatusResponse,
   PagedResponse,
@@ -104,6 +106,22 @@ export class LookupApi {
 
   lookup(term: string): Observable<WordLookupResult> {
     return this.http.post<WordLookupResult>('/api/lookup', { term });
+  }
+}
+
+@Injectable({ providedIn: 'root' })
+export class ImportApi {
+  private readonly http = inject(HttpClient);
+
+  upload(file: File): Observable<ImportPreviewResponse> {
+    const form = new FormData();
+    form.append('file', file, file.name);
+    return this.http.post<ImportPreviewResponse>('/api/import/apkg', form);
+  }
+
+  commit(importId: string, importDuplicates: boolean, importProgress: boolean): Observable<ImportCommitResponse> {
+    return this.http.post<ImportCommitResponse>(
+      `/api/import/apkg/${importId}/commit`, { importDuplicates, importProgress });
   }
 }
 
