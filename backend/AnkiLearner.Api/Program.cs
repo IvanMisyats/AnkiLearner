@@ -56,6 +56,18 @@ builder.Services.AddScoped<ICurrentUser, CurrentUser>();
 builder.Services.AddScoped<AnkiLearner.Api.Services.SettingsService>();
 builder.Services.AddSingleton<IContentSanitizer, AnkiLearner.Infrastructure.ContentSanitizer>();
 
+// --- AI word lookup (server-level key; degrades gracefully without one) ---
+builder.Services.Configure<AnkiLearner.Infrastructure.Lookup.AnthropicOptions>(
+    builder.Configuration.GetSection("Anthropic"));
+// The bare ANTHROPIC_API_KEY env var also works (documented in README);
+// Anthropic:ApiKey / Anthropic__ApiKey take precedence when set.
+builder.Services.PostConfigure<AnkiLearner.Infrastructure.Lookup.AnthropicOptions>(o =>
+{
+    if (string.IsNullOrWhiteSpace(o.ApiKey))
+        o.ApiKey = Environment.GetEnvironmentVariable("ANTHROPIC_API_KEY") ?? string.Empty;
+});
+builder.Services.AddSingleton<IWordLookupProvider, AnkiLearner.Infrastructure.Lookup.ClaudeLookupProvider>();
+
 // --- Rate limiting for credential endpoints (spec §8) ---
 // NOTE for the deploy phase: behind a reverse proxy, RemoteIpAddress is the proxy's
 // address — configure UseForwardedHeaders there or all users share one rate bucket.
@@ -68,6 +80,15 @@ builder.Services.AddRateLimiter(o =>
         {
             Window = TimeSpan.FromMinutes(1),
             PermitLimit = builder.Configuration.GetValue("RateLimiting:AuthPerMinute", 20),
+        }));
+    // AI lookup costs money per call — limit per authenticated user.
+    o.AddPolicy("lookup", context => RateLimitPartition.GetFixedWindowLimiter(
+        context.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+            ?? context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        _ => new FixedWindowRateLimiterOptions
+        {
+            Window = TimeSpan.FromMinutes(1),
+            PermitLimit = builder.Configuration.GetValue("RateLimiting:LookupPerMinute", 20),
         }));
 });
 
@@ -89,9 +110,10 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
-app.UseRateLimiter();
 app.UseAuthentication();
 app.UseAuthorization();
+// After authentication so per-user rate-limit partitions see the JWT identity.
+app.UseRateLimiter();
 
 app.MapControllers();
 app.MapHealthChecks("/api/health");

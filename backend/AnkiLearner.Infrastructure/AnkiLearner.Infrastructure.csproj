@@ -4,6 +4,7 @@
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" />
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" />
     <PackageReference Include="HtmlSanitizer" />
+    <PackageReference Include="Anthropic" />
   </ItemGroup>
 
   <ItemGroup>

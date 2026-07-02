@@ -44,6 +44,9 @@ cd frontend && npm install && npm start        # SPA on http://localhost:4200, p
 | `Jwt:AccessTokenMinutes` / `Jwt:RefreshTokenDays` | no | `15` / `30` | Token lifetimes |
 | `Auth:AllowRegistration` | no | `true` | Set `false` to close self-signup (single-user instance) |
 | `RateLimiting:AuthPerMinute` | no | `20` | Per-IP limit on credential endpoints |
+| `RateLimiting:LookupPerMinute` | no | `20` | Per-user limit on AI lookups |
+| `Anthropic:ApiKey` | no | *(empty — AI lookup disabled)* | Server-level Claude API key; the bare `ANTHROPIC_API_KEY` env var also works |
+| `Anthropic:Model` | no | `claude-haiku-4-5` | Model used for word lookup |
 
 All keys can be provided as environment variables (`Jwt__SigningKey=...`) or via
 `dotnet user-secrets` in development. The API refuses to start without a valid signing key.
