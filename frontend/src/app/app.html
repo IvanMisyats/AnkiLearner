@@ -1,1 +1,26 @@
-<router-outlet />
+<mat-toolbar>
+  <a class="brand" routerLink="/">AnkiLearner</a>
+  <span class="spacer"></span>
+  @if (auth.isAuthenticated()) {
+    <nav>
+      <a mat-button routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">
+        <mat-icon>school</mat-icon><span class="nav-label">Study</span>
+      </a>
+      <a mat-button routerLink="/words" routerLinkActive="active">
+        <mat-icon>menu_book</mat-icon><span class="nav-label">Dictionary</span>
+      </a>
+      <a mat-button routerLink="/import" routerLinkActive="active">
+        <mat-icon>upload_file</mat-icon><span class="nav-label">Import</span>
+      </a>
+      <a mat-button routerLink="/settings" routerLinkActive="active">
+        <mat-icon>settings</mat-icon><span class="nav-label">Settings</span>
+      </a>
+      <button mat-icon-button (click)="logout()" aria-label="Sign out" title="Sign out">
+        <mat-icon>logout</mat-icon>
+      </button>
+    </nav>
+  }
+</mat-toolbar>
+<main>
+  <router-outlet />
+</main>

@@ -1,0 +1,38 @@
+:host {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.brand {
+  text-decoration: none;
+  color: inherit;
+  font-weight: 500;
+}
+
+.spacer {
+  flex: 1;
+}
+
+main {
+  flex: 1;
+  overflow-y: auto;
+}
+
+nav {
+  display: flex;
+  align-items: center;
+
+  a {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  // Phone-first: keep only the icons on narrow screens.
+  @media (max-width: 700px) {
+    a .nav-label {
+      display: none;
+    }
+  }
+}
