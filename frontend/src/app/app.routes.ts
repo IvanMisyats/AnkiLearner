@@ -19,7 +19,27 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./features/dashboard/dashboard.component').then((m) => m.DashboardComponent),
       },
-      // /words, /import, /settings are added in later phases.
+      {
+        path: 'words',
+        loadComponent: () =>
+          import('./features/words/words-list.component').then((m) => m.WordsListComponent),
+      },
+      {
+        path: 'words/new',
+        loadComponent: () =>
+          import('./features/words/word-form.component').then((m) => m.WordFormComponent),
+      },
+      {
+        path: 'words/:id/edit',
+        loadComponent: () =>
+          import('./features/words/word-form.component').then((m) => m.WordFormComponent),
+      },
+      {
+        path: 'settings',
+        loadComponent: () =>
+          import('./features/settings/settings.component').then((m) => m.SettingsComponent),
+      },
+      // /import is added in Phase 8.
     ],
   },
   { path: '**', redirectTo: '' },
