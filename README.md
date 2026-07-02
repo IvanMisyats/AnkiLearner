@@ -8,10 +8,12 @@ The app's PostgreSQL database is the single source of truth; Anki is only an imp
 
 ## Status
 
-Greenfield. The design is complete; implementation has not started. This repo is the production
-rewrite of an earlier proof-of-concept (`C:\Projects\DanishLearner`, Razor Pages + SQLite).
+**v1 feature-complete** (spec phases 0–8): auth, dictionary, AI lookup, SM-2 study, and
+`.apkg` import are implemented and tested. Production packaging/CI/CD (phase 9) is deferred.
+This repo is the production rewrite of an earlier proof-of-concept
+(`C:\Projects\DanishLearner`, Razor Pages + SQLite).
 
-## Planned stack
+## Stack
 
 - **Backend:** ASP.NET Core 10 Web API, EF Core, ASP.NET Core Identity + JWT
 - **Frontend:** Angular (latest stable) + Angular Material

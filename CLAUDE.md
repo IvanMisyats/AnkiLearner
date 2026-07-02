@@ -113,7 +113,15 @@ AnkiLearner/                  # repo root
 - Be concise and direct in code comments and PRs.
 - New env config keys are documented in `README.md` and have safe defaults / graceful degradation.
 
-## How to run (once scaffolded — see the plan for build order)
+## Implementation status
+
+**Phases 0–8 of `docs/IMPLEMENTATION_PLAN.md` are complete** (2026-07-02): backend
+(auth/dictionary/lookup/SRS/import) with 54 integration+unit tests, Angular UI
+(auth/dictionary/study/import/settings) with unit tests. Verified against the real
+AnkiDroid export (947 notes → 944 words + 1424 SRS states). Phase 9 (Docker images,
+CI/CD, reverse proxy) remains deferred — do not start it without an explicit go-ahead.
+
+## How to run
 
 ```bash
 # local Postgres for dev
