@@ -235,20 +235,5 @@ public class WordsController(
         }
     }
 
-    private static WordDto ToDto(Word w) => new(
-        w.Id,
-        w.LanguageCode,
-        w.Term,
-        w.Transcription,
-        w.PartOfSpeech,
-        w.Gender,
-        w.Example,
-        w.Notes,
-        w.CreatedAt,
-        w.UpdatedAt,
-        w.Translations
-            .OrderBy(t => t.LanguageCode)
-            .Select(t => new TranslationDto(t.LanguageCode, t.Text, t.ExampleTranslation))
-            .ToList(),
-        w.WordTags.Select(wt => wt.Tag.Name).OrderBy(n => n).ToList());
+    private static WordDto ToDto(Word w) => WordMapper.ToDto(w);
 }

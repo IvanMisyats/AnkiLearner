@@ -40,4 +40,8 @@ public class SrsState
     public int Lapses { get; set; }
 
     public DateTime? LastReviewed { get; set; }
+
+    /// <summary>When this state was first created — i.e. when the word was introduced
+    /// for this exercise. Used to enforce the daily new-word limit (spec FR-R7).</summary>
+    public DateTime CreatedAt { get; set; }
 }
