@@ -134,5 +134,15 @@ dotnet run --project AnkiLearner.Api          # EF migrations applied on startup
 npm install && npm start                      # ng serve, proxies /api to the backend
 ```
 
+### Tests
+
+```bash
+# backend (from backend/) — integration tests use Testcontainers, so Docker MUST be running
+dotnet test
+
+# frontend (from frontend/) — ng test defaults to WATCH mode; --watch=false for one-shot
+npx ng test --watch=false
+```
+
 Server-level AI key (optional; AI lookup degrades gracefully without it):
 `Anthropic:ApiKey` via user-secrets/env `ANTHROPIC_API_KEY`.
