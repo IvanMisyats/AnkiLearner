@@ -1,0 +1,13 @@
+[Unit]
+# Fallback poll. The normal path is CI triggering /usr/local/bin/anki-deploy instantly over SSH;
+# this exists so a missed trigger, a failed Actions run, or a manually pushed image still
+# converges within a few minutes.
+Description=AnkiLearner deploy reconcile every 5 minutes
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=5min
+AccuracySec=30s
+
+[Install]
+WantedBy=timers.target

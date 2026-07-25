@@ -1,0 +1,158 @@
+# AnkiLearner — PRODUCTION stack.
+#
+# Installed on the VPS at /srv/ankilearner/deploy/docker-compose.yml, owned root:anki 0640 —
+# the app user can read it but not change it, so a stolen CI deploy key cannot rewrite what runs.
+#
+# Runs against the unprivileged `anki` user's own ROOTLESS Docker daemon:
+#   cd /srv/ankilearner/deploy && docker compose --env-file app.env up -d
+# In normal operation nothing invokes this by hand — infra/deploy/anki-deploy.sh does.
+#
+# This box also hosts QuestionsHub under a different user, with a different rootless daemon and a
+# different subuid range. Nothing here is shared with it.
+#
+# For local development use the repo-root docker-compose.yml (database only).
+
+name: ankilearner
+
+services:
+  api:
+    image: ghcr.io/ivanmisyats/ankilearner:${IMAGE_TAG:-latest}
+    container_name: ankilearner-api
+
+    # Container UID 0 maps to the unprivileged host user `anki` under rootless Docker, and every
+    # capability is dropped below — this is "root" in name only.
+    # NEVER copy this line to a rootful daemon.
+    user: "0:0"
+
+    # 8081 on the host: 8080 belongs to the other application on this box.
+    # Loopback only — nginx is the sole client.
+    ports:
+      - "127.0.0.1:8081:8080"
+
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ConnectionStrings__Default=Host=postgres;Port=5432;Database=ankilearner;Username=ankilearner;Password=${ANKILEARNER_PASSWORD}
+      - Jwt__SigningKey=${JWT_SIGNING_KEY}
+      - Jwt__Issuer=https://anki.misyats.com
+      - Jwt__Audience=https://anki.misyats.com
+      # Set false once the intended accounts exist — this is a private instance.
+      - Auth__AllowRegistration=${ALLOW_REGISTRATION:-false}
+      - Anthropic__ApiKey=${ANTHROPIC_API_KEY:-}
+      # Workstation GC: the box is shared and 2 vCPU. Server GC would reserve per-core heaps.
+      - DOTNET_gcServer=0
+
+    # The API writes nothing to disk: uploads are staged in IMemoryCache between preview and
+    # commit, and everything durable lives in Postgres. So the root filesystem can be immutable.
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=128m
+
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+      db-setup:
+        condition: service_completed_successfully
+
+    restart: unless-stopped
+
+    # Ceilings so neither app on this box can starve the other.
+    mem_limit: 384m
+    memswap_limit: 512m
+    cpus: 0.75
+    pids_limit: 256
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: ankilearner-db
+
+    # No `ports:`. Reachable only over this compose project's network.
+
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_ROOT_PASSWORD}
+      POSTGRES_DB: ankilearner
+
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ankilearner"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      # Minimum the official postgres entrypoint needs: chown the data dir, then gosu to postgres.
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETGID
+      - SETUID
+
+    restart: unless-stopped
+    mem_limit: 256m
+    memswap_limit: 384m
+    cpus: 0.5
+    pids_limit: 128
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    # Tuned small deliberately: this is the second database on a 4 GB box.
+    command: >
+      postgres
+      -c shared_buffers=64MB
+      -c work_mem=2MB
+      -c maintenance_work_mem=32MB
+      -c effective_cache_size=192MB
+      -c max_connections=20
+
+  # One-shot: create the non-superuser application role. Idempotent.
+  # Schema itself is created by EF Core migrations when the API starts.
+  db-setup:
+    image: postgres:16-alpine
+    container_name: ankilearner-db-setup
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGPASSWORD: ${POSTGRES_ROOT_PASSWORD}
+      ANKILEARNER_PASSWORD: ${ANKILEARNER_PASSWORD}
+    volumes:
+      - ./db/scripts:/scripts:ro
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    command:
+      - sh
+      - -c
+      - |
+        set -e
+        echo "Creating application role..."
+        psql -h postgres -U postgres -d ankilearner \
+             -v ANKILEARNER_PASSWORD="$$ANKILEARNER_PASSWORD" \
+             -f /scripts/01-app-user.sql
+        echo "Database setup complete!"
+    restart: "no"
+
+volumes:
+  pgdata:

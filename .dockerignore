@@ -1,0 +1,35 @@
+# Keep host build output out of the image context.
+#
+# Without this, `COPY backend/ backend/` drags in the developer's obj/ directories, whose
+# project.assets.json records Windows NuGet paths (C:\Users\...\.nuget\packages). Inside the
+# Linux build stage NuGet cannot resolve them and `dotnet publish` dies with MSB4018.
+#
+# CI never hits that — actions/checkout produces a clean tree — so the failure only ever shows up
+# on a developer machine, which is exactly the kind of bug worth pinning down in a file.
+
+# .NET build output
+**/bin/
+**/obj/
+
+# Node / Angular build output and caches
+**/node_modules/
+**/dist/
+**/.angular/
+
+# IDE and VCS
+.git/
+.gitignore
+.github/
+**/.vs/
+**/.vscode/
+**/.idea/
+
+# Docs and ops material: not needed to build the app, and they invalidate the build cache
+# every time they change.
+docs/
+infra/
+*.md
+LICENSE
+
+# Local compose file (production uses infra/docker-compose.yml)
+docker-compose.yml

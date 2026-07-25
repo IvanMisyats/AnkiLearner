@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily AnkiLearner backup
+
+[Timer]
+# 03:45 UTC — deliberately offset from QuestionsHub's 03:15 so the two apps on this box don't
+# both run pg_dump and a restic prune at the same moment on 2 vCPU.
+OnCalendar=*-*-* 03:45:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target

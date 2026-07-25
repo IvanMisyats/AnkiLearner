@@ -1,0 +1,12 @@
+[Unit]
+# USER unit — install to ~anki/.config/systemd/user/ and enable with:
+#   systemctl --user enable --now ankilearner-restic-check.timer
+Description=Weekly restic repository check (AnkiLearner)
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+Environment=RESTIC_CACHE_DIR=/srv/ankilearner/backup/restic-cache
+ExecStart=/bin/bash -c 'set -a; source /srv/ankilearner/backup/backup.env; set +a; restic -r "s3:${OVH_S3_ENDPOINT}/${OVH_S3_BUCKET}/restic" check'
+TimeoutStartSec=3600

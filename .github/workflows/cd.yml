@@ -1,0 +1,124 @@
+name: CD
+
+# Builds the production image (Angular SPA + API in one container), publishes it to GHCR, and
+# asks the VPS to redeploy.
+#
+# The workflow deliberately holds NO credential that can run commands on the host:
+#   * secrets.DEPLOY_SSH_KEY is pinned server-side to a forced command
+#     (`restrict,command="/usr/local/bin/anki-deploy"`), so the only thing it can express is
+#     "redeploy". It cannot open a shell, forward a port, or copy a file.
+#   * The compose file is NOT shipped from here. It lives root-owned at /srv/ankilearner/deploy/
+#     so a compromised repo cannot change what runs.
+#   * The image is public, so the VPS needs no registry credential.
+#
+# This matters more than usual: the VPS also hosts an unrelated application, and the whole point
+# of the isolation design is that compromising this repo cannot reach it.
+#
+# Third-party actions are avoided outright; GitHub-owned ones are pinned by commit SHA.
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: cd-production
+  cancel-in-progress: false
+
+env:
+  IMAGE: ghcr.io/ivanmisyats/ankilearner
+  SSH_PORT: 55055
+  DEPLOY_USER: anki
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    # The `branches: [main]` filter above matches the *head* branch of the triggering run, which
+    # for a fork pull request is the fork's branch name — a branch literally named "main" in a
+    # fork would satisfy it. The head_repository check below is what keeps this on first-party
+    # code.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.head_repository.full_name == github.repository &&
+       github.event.workflow_run.event != 'pull_request')
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout the exact commit CI tested
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          # Without this, a workflow_run checkout defaults to the branch tip and could build a
+          # different commit than the one CI validated.
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          persist-credentials: false
+
+      - name: Compute image tags
+        id: tags
+        run: |
+          short="$(git rev-parse --short HEAD)"
+          echo "sha_tag=sha-${short}" >> "$GITHUB_OUTPUT"
+          echo "Building ${IMAGE}:latest and ${IMAGE}:sha-${short}"
+
+      - name: Log in to GHCR
+        run: |
+          echo '${{ secrets.GITHUB_TOKEN }}' \
+            | docker login ghcr.io -u '${{ github.actor }}' --password-stdin
+
+      - name: Build and push
+        run: |
+          docker buildx build \
+            -f backend/AnkiLearner.Api/Dockerfile \
+            -t "${IMAGE}:latest" \
+            -t "${IMAGE}:${{ steps.tags.outputs.sha_tag }}" \
+            --push .
+
+      - name: Trigger deploy on the VPS
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          # Bootstrap state: the image is published but the VPS side isn't wired up yet. Skip
+          # loudly rather than failing — a red run for an expected reason teaches people to
+          # ignore red runs. Any secret present but incomplete is still a hard failure.
+          if [ -z "$DEPLOY_HOST" ] && [ -z "$DEPLOY_SSH_KEY" ]; then
+            echo "::warning title=Deploy skipped::No DEPLOY_HOST/DEPLOY_SSH_KEY secrets set. Image was published; VPS deploy skipped."
+            {
+              echo "### Deploy skipped"
+              echo "The image was built and pushed, but no deploy secrets are configured yet."
+              echo "Add \`DEPLOY_HOST\`, \`DEPLOY_SSH_KEY\` and \`DEPLOY_KNOWN_HOSTS\` to enable deployment."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          for v in DEPLOY_HOST DEPLOY_SSH_KEY DEPLOY_KNOWN_HOSTS; do
+            eval "val=\$$v"
+            [ -n "$val" ] || { echo "::error::$v is empty but other deploy secrets are set"; exit 1; }
+          done
+
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY"     > ~/.ssh/deploy_key
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/deploy_key ~/.ssh/known_hosts
+
+          # No command argument: the server-side forced command decides what runs and ignores
+          # anything sent from here. Its stdout and exit code are this step's result.
+          ssh -i ~/.ssh/deploy_key \
+              -p "$SSH_PORT" \
+              -o StrictHostKeyChecking=yes \
+              -o BatchMode=yes \
+              -o ConnectTimeout=15 \
+              "${DEPLOY_USER}@${DEPLOY_HOST}"
+
+      - name: Clean up the deploy key
+        if: always()
+        run: rm -f ~/.ssh/deploy_key

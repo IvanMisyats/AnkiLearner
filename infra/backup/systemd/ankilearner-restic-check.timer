@@ -1,0 +1,10 @@
+[Unit]
+Description=Weekly restic check (AnkiLearner)
+
+[Timer]
+# Sunday 05:00 UTC — after QuestionsHub's 04:30 check, not concurrent with it.
+OnCalendar=Sun *-*-* 05:00:00
+Persistent=true
+
+[Install]
+WantedBy=timers.target
