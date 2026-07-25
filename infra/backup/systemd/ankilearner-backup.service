@@ -1,0 +1,15 @@
+[Unit]
+# USER unit — install to ~anki/.config/systemd/user/ and enable with:
+#   systemctl --user enable --now ankilearner-backup.timer
+#
+# It must be a user unit: pg_dump runs through anki's own ROOTLESS Docker socket, which lives in
+# this user's runtime directory. That is also why the backup account needs no `docker` group —
+# that group is root-equivalent, and this box hosts an unrelated application too.
+Description=AnkiLearner backup (db + config) via restic to OVH Object Storage
+Wants=network-online.target
+After=network-online.target docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/anki-backup
+TimeoutStartSec=3600

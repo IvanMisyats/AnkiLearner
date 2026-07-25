@@ -1,18 +1,25 @@
 # Local development: only the database runs in Docker.
 # Backend: dotnet run --project backend/AnkiLearner.Api
 # Frontend: npm start (from frontend/)
-# Production packaging (api + frontend images) is a later phase.
+#
+# Production is a separate file: infra/docker-compose.yml, installed on the VPS at
+# /srv/ankilearner/deploy/. It runs against an unprivileged rootless Docker daemon with dropped
+# capabilities, a read-only root filesystem and no published database port — settings that have
+# no business in a dev file. See infra/README.md.
 services:
   db:
     image: postgres:16
-    container_name: ankilearner-db
+    # -dev suffix: production uses `ankilearner-db`, and identical names make it far too easy to
+    # point a local psql at the wrong thing.
+    container_name: ankilearner-db-dev
     environment:
       POSTGRES_USER: ankilearner
       POSTGRES_PASSWORD: ankilearner  # local dev only — override in production
       POSTGRES_DB: ankilearner
     ports:
-      # Host port 5433: 5432 is commonly taken by other local Postgres instances
-      - "5433:5432"
+      # Host port 5433: 5432 is commonly taken by other local Postgres instances.
+      # Loopback-bound: a bare "5433:5432" listens on 0.0.0.0.
+      - "127.0.0.1:5433:5432"
     volumes:
       - db-data:/var/lib/postgresql/data
     healthcheck:

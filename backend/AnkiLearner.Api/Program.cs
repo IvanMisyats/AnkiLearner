@@ -5,6 +5,7 @@ using AnkiLearner.Core.Abstractions;
 using AnkiLearner.Infrastructure.Data;
 using AnkiLearner.Infrastructure.Identity;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
@@ -70,9 +71,21 @@ builder.Services.PostConfigure<AnkiLearner.Infrastructure.Lookup.AnthropicOption
 });
 builder.Services.AddSingleton<IWordLookupProvider, AnkiLearner.Infrastructure.Lookup.ClaudeLookupProvider>();
 
+// --- Reverse proxy ---
+// In production nginx terminates TLS and proxies to this container, so RemoteIpAddress would
+// otherwise be the proxy's address: every user would share one rate-limit bucket, and
+// Request.Scheme would be http, which breaks the Secure refresh cookie.
+// KnownProxies/KnownNetworks are cleared deliberately: the container port is bound to loopback
+// on the host and only nginx can reach it, and nginx appends the real client to
+// X-Forwarded-For, which (with the default ForwardLimit of 1) is the entry taken here.
+builder.Services.Configure<ForwardedHeadersOptions>(o =>
+{
+    o.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    o.KnownIPNetworks.Clear();
+    o.KnownProxies.Clear();
+});
+
 // --- Rate limiting for credential endpoints (spec §8) ---
-// NOTE for the deploy phase: behind a reverse proxy, RemoteIpAddress is the proxy's
-// address — configure UseForwardedHeaders there or all users share one rate bucket.
 builder.Services.AddRateLimiter(o =>
 {
     o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
@@ -106,12 +119,32 @@ using (var scope = app.Services.CreateScope())
     await db.Database.MigrateAsync();
 }
 
+// Must run before anything that reads the client IP or the scheme.
+app.UseForwardedHeaders();
+
 app.UseExceptionHandler();
 
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
 }
+
+// --- Angular SPA, served from wwwroot (single origin: no CORS needed) ---
+// In development the SPA is served by `ng serve` and wwwroot is empty; these are then no-ops.
+app.UseDefaultFiles();
+app.UseStaticFiles(new StaticFileOptions
+{
+    OnPrepareResponse = ctx =>
+    {
+        // Angular builds with outputHashing: all, so asset filenames change on every build and
+        // may be cached indefinitely. index.html must NOT be, or clients pin an old bundle.
+        var headers = ctx.Context.Response.Headers;
+        headers.CacheControl =
+            ctx.File.Name.Equals("index.html", StringComparison.OrdinalIgnoreCase)
+                ? "no-cache, no-store, must-revalidate"
+                : "public, max-age=31536000, immutable";
+    },
+});
 
 app.UseAuthentication();
 app.UseAuthorization();
@@ -120,6 +153,10 @@ app.UseRateLimiter();
 
 app.MapControllers();
 app.MapHealthChecks("/api/health");
+
+// Client-side routing: hand any non-API path to the SPA. The regex keeps unmatched /api/*
+// requests returning a real 404 instead of an HTML page.
+app.MapFallbackToFile("{*path:regex(^(?!api/).*$)}", "index.html");
 
 app.Run();
 

@@ -1,0 +1,13 @@
+[Unit]
+# USER unit — install to ~anki/.config/systemd/user/, enable with:
+#   systemctl --user enable --now anki-deploy.timer
+# It must be a user unit because rootless Docker's socket lives in this user's runtime dir.
+# `loginctl enable-linger anki` (done at bootstrap) keeps it running without an interactive login.
+Description=AnkiLearner deploy reconcile (pull current image, converge stack)
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/anki-deploy
+TimeoutStartSec=600
