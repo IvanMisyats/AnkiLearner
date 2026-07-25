@@ -21,7 +21,8 @@ time. Authoritative scope lives in `SPECIFICATION.md`; locked decisions in `../C
   same phase as the code they cover.
 - Conventional commits; keep PRs scoped to one phase. Update `../CLAUDE.md` and `README.md` when a
   phase changes how to run or configure the app.
-- **Do not** build CI/CD, production reverse proxy, or TLS — that is the deferred Phase 9.
+- ~~**Do not** build CI/CD, production reverse proxy, or TLS — that is the deferred Phase 9.~~
+  Phase 9 was built on 2026-07-25; see below and `infra/README.md`.
 - Do not run `git push` (the user pushes manually). Commit freely on a feature branch.
 
 ---
@@ -244,14 +245,25 @@ skipped, not fatal; legacy packages are rejected with a clear message; tests gre
 
 ---
 
-## Phase 9 — Deferred: packaging, CI/CD, production deploy
+## Phase 9 — Packaging, CI/CD, production deploy
 
-**Status: NOT part of v1.** Listed for completeness; do **not** start without an explicit go-ahead.
+**Status: BUILT (2026-07-25), not yet deployed.** Lives in `infra/` and
+`backend/AnkiLearner.Api/Dockerfile`; see [`../infra/README.md`](../infra/README.md).
 
-Scope when resumed: production Dockerfiles + compose, image registry (GHCR), GitHub Actions
-build/deploy, reverse proxy + automatic TLS (decide Caddy vs Traefik vs nginx then), DB backups,
-secrets management, environment configs. Until then, the app runs via local `docker compose up -d
-db` + `dotnet run` + `ng serve`.
+Decisions taken, and why they differ from what this section originally anticipated:
+
+| Item | Choice |
+|---|---|
+| Image | One image: the Angular build is baked into the API's `wwwroot`. Keeps single-origin (no CORS, the httpOnly refresh cookie keeps working) and leaves host nginx a pure proxy |
+| Registry | GHCR, **public** — so the VPS holds no registry credential |
+| Reverse proxy | **nginx** (not Caddy/Traefik): the box already runs it for a second site, and a shared proxy is one process, not two |
+| TLS | **Cloudflare Origin CA** (15-year) + Authenticated Origin Pulls. No ACME, no renewal timer, port 80 closed |
+| Deploy trigger | **Auto on push to `main`**, via `workflow_run` after CI succeeds — same as QuestionsHub. `workflow_dispatch` for manual runs |
+| Deploy mechanism | Pull-based, with an instant SSH trigger pinned to a forced command. CI can say "redeploy" and nothing else |
+| Runtime | Own Linux user with its **own rootless Docker daemon** — the VPS is shared with an unrelated app, and the `docker` group is root-equivalent |
+| Backups | restic → OVH Object Storage, own bucket/key/password, daily |
+
+Local development is unchanged: `docker compose up -d db` + `dotnet run` + `ng serve`.
 
 ---
 
