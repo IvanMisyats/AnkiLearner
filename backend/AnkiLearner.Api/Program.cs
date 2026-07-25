@@ -146,6 +146,17 @@ app.UseStaticFiles(new StaticFileOptions
     },
 });
 
+// Explicit, and deliberately AFTER the static file middleware.
+//
+// WebApplication auto-inserts UseRouting at the START of the pipeline when it sees mapped
+// endpoints. That would let the MapFallbackToFile endpoint below be selected before
+// UseStaticFiles runs — and StaticFileMiddleware skips any request that already has an endpoint.
+// The result is that every asset (main-*.js, styles-*.css, favicon) is answered with index.html
+// and the SPA never boots. Calling UseRouting here suppresses the automatic one and pins the
+// order. Verified by asserting Content-Type on a hashed asset; see the smoke test in
+// infra/README.md.
+app.UseRouting();
+
 app.UseAuthentication();
 app.UseAuthorization();
 // After authentication so per-user rate-limit partitions see the JWT identity.

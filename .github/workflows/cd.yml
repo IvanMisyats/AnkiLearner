@@ -88,6 +88,23 @@ jobs:
           DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
           DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
         run: |
+          # Bootstrap state: the image is published but the VPS side isn't wired up yet. Skip
+          # loudly rather than failing — a red run for an expected reason teaches people to
+          # ignore red runs. Any secret present but incomplete is still a hard failure.
+          if [ -z "$DEPLOY_HOST" ] && [ -z "$DEPLOY_SSH_KEY" ]; then
+            echo "::warning title=Deploy skipped::No DEPLOY_HOST/DEPLOY_SSH_KEY secrets set. Image was published; VPS deploy skipped."
+            {
+              echo "### Deploy skipped"
+              echo "The image was built and pushed, but no deploy secrets are configured yet."
+              echo "Add \`DEPLOY_HOST\`, \`DEPLOY_SSH_KEY\` and \`DEPLOY_KNOWN_HOSTS\` to enable deployment."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          for v in DEPLOY_HOST DEPLOY_SSH_KEY DEPLOY_KNOWN_HOSTS; do
+            eval "val=\$$v"
+            [ -n "$val" ] || { echo "::error::$v is empty but other deploy secrets are set"; exit 1; }
+          done
+
           install -m 700 -d ~/.ssh
           printf '%s\n' "$DEPLOY_SSH_KEY"     > ~/.ssh/deploy_key
           printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
