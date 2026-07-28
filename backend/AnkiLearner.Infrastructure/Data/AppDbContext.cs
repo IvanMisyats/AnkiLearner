@@ -11,6 +11,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
 {
     public DbSet<UserSettings> UserSettings => Set<UserSettings>();
     public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+    public DbSet<ApiToken> ApiTokens => Set<ApiToken>();
     public DbSet<Word> Words => Set<Word>();
     public DbSet<WordTranslation> WordTranslations => Set<WordTranslation>();
     public DbSet<Tag> Tags => Set<Tag>();
@@ -34,6 +35,15 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         {
             e.HasIndex(t => t.TokenHash).IsUnique();
             e.Property(t => t.TokenHash).HasMaxLength(88);
+            e.HasOne<AppUser>().WithMany().HasForeignKey(t => t.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<ApiToken>(e =>
+        {
+            e.HasIndex(t => t.TokenHash).IsUnique();
+            e.Property(t => t.TokenHash).HasMaxLength(88);
+            e.Property(t => t.Name).HasMaxLength(100);
             e.HasOne<AppUser>().WithMany().HasForeignKey(t => t.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
         });

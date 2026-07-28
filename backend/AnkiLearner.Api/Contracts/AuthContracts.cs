@@ -19,3 +19,17 @@ public record SettingsDto(string LearningLanguage, List<string> KnownLanguages, 
 public record AuthResponse(string AccessToken, UserDto User);
 
 public record MeResponse(UserDto User, SettingsDto Settings);
+
+public record CreateApiTokenRequest(
+    [Required, MaxLength(100)] string Name,
+    [Range(1, 3650)] int? ExpiresInDays);
+
+public record ApiTokenDto(
+    Guid Id,
+    string Name,
+    DateTime CreatedAt,
+    DateTime? LastUsedAt,
+    DateTime? ExpiresAt);
+
+/// <summary>The only response that ever carries the raw token — it cannot be retrieved again.</summary>
+public record CreatedApiTokenResponse(ApiTokenDto Token, string Value);

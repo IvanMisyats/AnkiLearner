@@ -4,6 +4,7 @@ using AnkiLearner.Api.Auth;
 using AnkiLearner.Core.Abstractions;
 using AnkiLearner.Infrastructure.Data;
 using AnkiLearner.Infrastructure.Identity;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
@@ -42,18 +43,34 @@ if (jwt.SigningKey.Length < 32)
     throw new InvalidOperationException(
         "Jwt:SigningKey must be set and at least 32 characters. Generate a random one per instance.");
 
-builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+// Two credential types reach the same [Authorize] endpoints: short-lived JWTs from the SPA, and
+// long-lived API tokens from non-interactive clients that cannot hold the refresh cookie. The
+// default scheme is a policy scheme that routes on the bearer value's shape, so no controller
+// needs to know which one it was given.
+builder.Services.AddAuthentication(AuthSchemes.Default)
+    .AddPolicyScheme(AuthSchemes.Default, AuthSchemes.Default, o =>
+        o.ForwardDefaultSelector = context =>
+            context.Request.Headers.Authorization.ToString()
+                // Case-insensitive: RFC 7235 makes the auth scheme name case-insensitive, and a
+                // client sending "bearer ankl_..." must not have its token handed to the JWT
+                // parser instead.
+                .StartsWith($"Bearer {ApiTokenService.Prefix}", StringComparison.OrdinalIgnoreCase)
+                ? AuthSchemes.ApiToken
+                : JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(o => o.TokenValidationParameters = new TokenValidationParameters
     {
         ValidIssuer = jwt.Issuer,
         ValidAudience = jwt.Audience,
         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwt.SigningKey)),
         ClockSkew = TimeSpan.FromSeconds(30),
-    });
+    })
+    .AddScheme<AuthenticationSchemeOptions, ApiTokenAuthenticationHandler>(
+        AuthSchemes.ApiToken, null);
 builder.Services.AddAuthorization();
 
 builder.Services.AddScoped<TokenService>();
 builder.Services.AddScoped<RefreshTokenService>();
+builder.Services.AddScoped<ApiTokenService>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUser, CurrentUser>();
 builder.Services.AddScoped<AnkiLearner.Api.Services.SettingsService>();

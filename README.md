@@ -54,6 +54,38 @@ cd frontend && npm install && npm start        # SPA on http://localhost:4200, p
 All keys can be provided as environment variables (`Jwt__SigningKey=...`) or via
 `dotnet user-secrets` in development. The API refuses to start without a valid signing key.
 
+## API tokens
+
+Non-interactive clients (scripts, CLI tools) can't hold the browser's httpOnly refresh cookie, so
+they authenticate with a long-lived personal access token instead of a JWT. A token carries the
+**same rights as your account** — treat it like a password and revoke it if it leaks.
+
+Mint one from an ordinary password login (a token cannot mint another token):
+
+```bash
+BASE=https://anki.misyats.com
+JWT=$(curl -s -X POST "$BASE/api/auth/login" -H 'Content-Type: application/json' \
+  -d '{"email":"you@example.com","password":"..."}' | jq -r .accessToken)
+
+curl -s -X POST "$BASE/api/tokens" -H "Authorization: Bearer $JWT" \
+  -H 'Content-Type: application/json' -d '{"name":"my-script"}' | jq -r .value
+```
+
+The raw value (`ankl_…`) is returned **once** — only its SHA-256 hash is stored. Send it as a
+bearer token to any endpoint the SPA uses:
+
+```bash
+curl -s "$BASE/api/auth/me" -H "Authorization: Bearer ankl_..."
+```
+
+| Verb | Route | Purpose |
+|---|---|---|
+| `POST` | `/api/tokens` | `{ "name": "...", "expiresInDays": 90 }` — omit `expiresInDays` to never expire |
+| `GET` | `/api/tokens` | list active tokens (metadata only; never the value) |
+| `DELETE` | `/api/tokens/{id}` | revoke immediately |
+
+All three require a password-backed JWT, so a leaked token cannot extend or hide itself.
+
 ## Documentation
 
 - [`CLAUDE.md`](CLAUDE.md) — project context and locked decisions (for Claude Code agents)

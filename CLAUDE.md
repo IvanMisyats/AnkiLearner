@@ -50,6 +50,7 @@ hosted). Reuse the POC's **domain logic and research**, not its delivery mechani
 | 14 | Anki progress | **Import scheduling state** from `.apkg` (best-effort map of interval/ease/due → SM-2; optional at commit, default on) |
 | 15 | Study model | **Combined directions**: `TargetToKnown` shows all known-language translations together; per-language directions deferred |
 | 16 | Auth scope | **Minimal v1**: register/login/logout + JWT/refresh; no email verification, no password-reset email |
+| 17 | Script access | **Personal access tokens** (`ankl_` prefix) as a second auth scheme; full-account scope, managed only by a password login. No scopes, no management UI. |
 
 ## Tech stack
 
@@ -119,7 +120,12 @@ AnkiLearner/                  # repo root
 (auth/dictionary/lookup/SRS/import) with 54 integration+unit tests, Angular UI
 (auth/dictionary/study/import/settings) with unit tests. Verified against the real
 AnkiDroid export (947 notes → 944 words + 1424 SRS states). Phase 9 (Docker images,
-CI/CD, reverse proxy) remains deferred — do not start it without an explicit go-ahead.
+CI/CD, reverse proxy) is done and deployed to `anki.misyats.com`.
+
+**API tokens** (2026-07-28): `[Authorize]` endpoints accept either a SPA JWT or a long-lived
+`ankl_…` personal access token, routed by a policy scheme in `Program.cs`. Added so external
+clients — starting with the `danish-word` Claude skill in `~/.claude/skills/` — can add words
+without a browser session. See the API tokens section of `README.md`.
 
 ## How to run
 
