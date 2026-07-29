@@ -1,4 +1,4 @@
-import { Component, HostListener, OnInit, inject, signal } from '@angular/core';
+import { Component, HostListener, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -52,6 +52,14 @@ import { NotifyService } from '../../core/notify.service';
               }
               @if (card()!.word.example) {
                 <div class="extra example" [innerHTML]="card()!.word.example"></div>
+                @for (translation of exampleTranslations(); track translation.languageCode) {
+                  <div class="extra example-translation">
+                    @if (exampleTranslations().length > 1) {
+                      <span class="lang">{{ translation.languageCode.toUpperCase() }}</span>
+                    }
+                    <span [innerHTML]="translation.text"></span>
+                  </div>
+                }
               }
 
               @if (editing()) {
@@ -133,6 +141,11 @@ import { NotifyService } from '../../core/notify.service';
     hr { border: none; border-top: 1px solid var(--mat-sys-outline-variant); margin: 8px 0; }
     .extra { color: var(--mat-sys-on-surface-variant); margin-top: 4px; }
     .example { font-style: italic; }
+    /* Subordinate to the target-language sentence it translates. */
+    .example-translation { font-style: italic; opacity: 0.75; margin-top: 2px; }
+    .example-translation .lang {
+      font-size: 11px; margin-right: 6px; vertical-align: middle; font-style: normal;
+    }
 
     .correct-button { margin-top: 12px; }
     .edit-panel { margin-top: 12px; }
@@ -175,6 +188,20 @@ export class StudyComponent implements OnInit {
   readonly loading = signal(true);
   readonly editing = signal(false);
   readonly savingCorrection = signal(false);
+
+  /**
+   * Translations of the example sentence, in the user's known-language order — shown with the
+   * answer, under the target-language example. flatMap is used as a filter+map in one pass:
+   * returning [] drops a language that has no example translation.
+   */
+  readonly exampleTranslations = computed(() => {
+    const known = this.auth.settings()?.knownLanguages ?? [];
+    const translations = this.card()?.word.translations ?? [];
+    return known.flatMap((languageCode) => {
+      const text = translations.find((t) => t.languageCode === languageCode)?.exampleTranslation?.trim();
+      return text ? [{ languageCode, text }] : [];
+    });
+  });
 
   private exercise: ExerciseType = 'TargetToKnown';
   private tag: string | undefined;
