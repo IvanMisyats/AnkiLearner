@@ -141,6 +141,53 @@ public class StudyFlowTests(ApiFactory factory) : IClassFixture<ApiFactory>
         Assert.Contains("EN", next.Card.Answer); // language labels when several languages
     }
 
+    [Fact]
+    public async Task ReviewedToday_CountsGradedWordsOncePerDirection()
+    {
+        var client = await factory.CreateAuthenticatedClientAsync();
+        var graded = await CreateWordAsync(client, "regn", "rain");
+        await CreateWordAsync(client, "sne", "snow");
+
+        var before = await GetAsync<List<StudyCountsDto>>(client, "/api/study/counts");
+        Assert.Equal(0, before.Single(c => c.Exercise == "TargetToKnown").ReviewedToday);
+
+        // Two presses on the same word count once: only the latest review is stored.
+        await PostAsync<StudyNextResponse>(client, "/api/study/grade",
+            new { wordId = graded.Id, exercise = "TargetToKnown", grade = "Again" });
+        await PostAsync<StudyNextResponse>(client, "/api/study/grade",
+            new { wordId = graded.Id, exercise = "TargetToKnown", grade = "Good" });
+
+        var after = await GetAsync<List<StudyCountsDto>>(client, "/api/study/counts");
+        Assert.Equal(1, after.Single(c => c.Exercise == "TargetToKnown").ReviewedToday);
+        Assert.Equal(0, after.Single(c => c.Exercise == "KnownToTarget").ReviewedToday);
+    }
+
+    [Fact]
+    public async Task ResetProgress_MakesTheWordNewAgain_InBothDirections()
+    {
+        var client = await factory.CreateAuthenticatedClientAsync();
+        var word = await CreateWordAsync(client, "sommerfugl", "butterfly");
+
+        foreach (var exercise in new[] { "TargetToKnown", "KnownToTarget" })
+            await PostAsync<StudyNextResponse>(client, "/api/study/grade",
+                new { wordId = word.Id, exercise, grade = "Good" });
+
+        var graded = await GetAsync<List<StudyCountsDto>>(client, "/api/study/counts");
+        Assert.All(graded, c => Assert.Equal(0, c.New));
+        Assert.All(graded, c => Assert.Equal(1, c.ReviewedToday));
+
+        var reset = await client.DeleteAsync($"/api/words/{word.Id}/progress");
+        Assert.Equal(HttpStatusCode.NoContent, reset.StatusCode);
+
+        var after = await GetAsync<List<StudyCountsDto>>(client, "/api/study/counts");
+        Assert.All(after, c => Assert.Equal(1, c.New));
+        Assert.All(after, c => Assert.Equal(0, c.ReviewedToday));
+
+        // Only the progress is forgotten — the word itself is untouched.
+        var fetched = await (await client.GetAsync($"/api/words/{word.Id}")).ReadAsAsync<WordDto>();
+        Assert.Equal("sommerfugl", fetched.Term);
+    }
+
     // --- helpers ---
 
     private static async Task<T> GetAsync<T>(HttpClient client, string url) =>
@@ -175,7 +222,7 @@ public class StudyFlowTests(ApiFactory factory) : IClassFixture<ApiFactory>
         response.EnsureSuccessStatusCode();
     }
 
-    private record StudyCountsDto(string Exercise, int Due, int New);
+    private record StudyCountsDto(string Exercise, int Due, int New, int ReviewedToday);
     private record StudyIntervalsDto(string Again, string Hard, string Good, string Easy);
     private record StudyCardDto(WordDto Word, string Prompt, string Answer, bool IsNew, StudyIntervalsDto Intervals);
     private record StudyNextResponse(StudyCardDto? Card, int Remaining);

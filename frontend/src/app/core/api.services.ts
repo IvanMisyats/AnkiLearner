@@ -51,6 +51,11 @@ export class WordsApi {
     return this.http.delete<void>(`/api/words/${id}`);
   }
 
+  /** Forgets the word's SRS progress in both directions; keeps the word itself. */
+  resetProgress(id: string): Observable<void> {
+    return this.http.delete<void>(`/api/words/${id}/progress`);
+  }
+
   checkDuplicate(term: string, excludeId?: string): Observable<DuplicateCheckResponse> {
     let params = new HttpParams().set('term', term);
     if (excludeId) params = params.set('excludeId', excludeId);

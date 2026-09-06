@@ -106,6 +106,8 @@ wants translations available in both. Previously used AnkiDroid; has ~945 words 
 - **FR-D6** Manage tags: create, rename, delete, list with usage counts. Deleting a tag unlinks it
   from words (does not delete words).
 - **FR-D7** All HTML content is **sanitized server-side** on save; rendered safely on the client.
+- **FR-D8** **Reset a word's progress**: drop its SRS states in *all* directions so it is offered
+  as new again, keeping the word, its translations and its tags. Confirmed in the UI before it runs.
 
 ### 3.4 Add word (manual + AI lookup)
 
@@ -167,8 +169,10 @@ The add-word form is always usable manually; AI lookup pre-fills it.
 
 ### 3.6 Study / review (SRS)
 
-- **FR-R1** The home/study screen shows, per direction, counts of **due** and **new** cards
-  (optionally filtered by tag), like the POC's exercise picker.
+- **FR-R1** The home/study screen shows, per direction, counts of **due** and **new** cards plus
+  the number of words **reviewed today** (optionally filtered by tag), like the POC's exercise
+  picker. "Today" is the **UTC day**, the same boundary FR-R7 uses. Only the latest review is
+  stored per card, so repeat presses on one word count once and FR-D8 removes it from the total.
 - **FR-R2** The user picks a **direction**:
   - `TargetToKnown` — prompt = target term; answer reveals all known-language translations.
   - `KnownToTarget` — prompt = primary known-language translation(s); answer reveals the target
@@ -362,6 +366,7 @@ Auth via `Authorization: Bearer <jwt>` except register/login/refresh. All list e
 - `POST   /api/words` (create; body includes translations[] + tags[])
 - `PUT    /api/words/{id}`
 - `DELETE /api/words/{id}`
+- `DELETE /api/words/{id}/progress` → 204; resets the word's SRS states in every direction
 
 **Tags**
 - `GET    /api/tags` → `[{ id, name, count }]`
@@ -374,7 +379,7 @@ Auth via `Authorization: Bearer <jwt>` except register/login/refresh. All list e
 - `POST /api/lookup` `{ term }` → `WordLookupResult` (not persisted)
 
 **Study**
-- `GET  /api/study/counts?tag=` → per-exercise `{ due, new }`
+- `GET  /api/study/counts?tag=` → per-exercise `{ due, new, reviewedToday }`
 - `GET  /api/study/next?exercise=&tag=` → `{ word, prompt, answerHidden, intervals{Again,Hard,Good,Easy}, remaining }`
 - `POST /api/study/grade` `{ wordId, exercise, grade }` → applies SM-2, returns next card
 

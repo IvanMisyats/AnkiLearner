@@ -175,6 +175,17 @@ public class WordsCrudTests(ApiFactory factory) : IClassFixture<ApiFactory>
         Assert.Contains(restored.Translations, t => t.LanguageCode == "en" && t.Text == "apple (fruit)");
     }
 
+    [Fact]
+    public async Task ResetProgress_OnAnotherUsersWord_Returns404()
+    {
+        var alice = await factory.CreateAuthenticatedClientAsync();
+        var bob = await factory.CreateAuthenticatedClientAsync();
+        var word = await CreateWordAsync(alice, "fugl", "bird");
+
+        var response = await bob.DeleteAsync($"/api/words/{word.Id}/progress");
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
     private static async Task<WordDto> CreateWordAsync(
         HttpClient client, string term, string enText, string[]? tags = null, string? ukText = null)
     {

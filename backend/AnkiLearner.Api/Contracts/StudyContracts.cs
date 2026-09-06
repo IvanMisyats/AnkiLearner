@@ -16,6 +16,8 @@ public record StudyCardDto(
 /// <summary>Card is null when there is nothing left to study right now.</summary>
 public record StudyNextResponse(StudyCardDto? Card, int Remaining);
 
-public record StudyCountsDto(ExerciseType Exercise, int Due, int New);
+/// <summary>Dashboard counters for one direction. <c>ReviewedToday</c> counts distinct words
+/// reviewed since 00:00 UTC — the same day boundary the daily new-word limit uses.</summary>
+public record StudyCountsDto(ExerciseType Exercise, int Due, int New, int ReviewedToday);
 
 public record GradeRequest(Guid WordId, ExerciseType Exercise, ReviewGrade Grade);

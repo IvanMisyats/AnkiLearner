@@ -11,6 +11,7 @@ import { RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { TagsApi, WordsApi } from '../../core/api.services';
 import { TagDto, WordDto } from '../../core/api.types';
+import { ConfirmService } from '../../core/confirm.service';
 import { NotifyService } from '../../core/notify.service';
 
 @Component({
@@ -138,6 +139,7 @@ export class WordsListComponent implements OnInit {
   private readonly wordsApi = inject(WordsApi);
   private readonly tagsApi = inject(TagsApi);
   private readonly notify = inject(NotifyService);
+  private readonly confirm = inject(ConfirmService);
 
   readonly words = signal<WordDto[]>([]);
   readonly tags = signal<TagDto[]>([]);
@@ -181,7 +183,13 @@ export class WordsListComponent implements OnInit {
 
   async remove(word: WordDto): Promise<void> {
     const plain = word.term.replace(/<[^>]*>/g, '');
-    if (!confirm(`Delete "${plain}" and its study progress?`)) return;
+    const confirmed = await this.confirm.ask({
+      title: 'Delete word?',
+      message: `"${plain}" and its study progress will be permanently deleted.`,
+      confirmText: 'Delete',
+      destructive: true,
+    });
+    if (!confirmed) return;
     try {
       await firstValueFrom(this.wordsApi.delete(word.id));
       this.notify.success('Word deleted.');

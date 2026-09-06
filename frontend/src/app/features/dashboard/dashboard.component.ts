@@ -10,7 +10,7 @@ import { ExerciseType, Language, StudyCountsDto, TagDto } from '../../core/api.t
 import { AuthService } from '../../core/auth.service';
 import { NotifyService } from '../../core/notify.service';
 
-/** Study dashboard: due/new counters per direction + start buttons (spec FR-R1). */
+/** Study dashboard: due/new/reviewed-today counters per direction + start buttons (spec FR-R1). */
 @Component({
   selector: 'app-dashboard',
   imports: [RouterLink, MatCardModule, MatButtonModule, MatIconModule, MatChipsModule],
@@ -46,6 +46,10 @@ import { NotifyService } from '../../core/notify.service';
                   <span class="number new">{{ countFor(direction.exercise)?.new ?? 0 }}</span>
                   <span class="label">new</span>
                 </div>
+                <div class="counter">
+                  <span class="number reviewed">{{ countFor(direction.exercise)?.reviewedToday ?? 0 }}</span>
+                  <span class="label">reviewed today</span>
+                </div>
               </div>
             </mat-card-content>
             <mat-card-actions>
@@ -68,12 +72,14 @@ import { NotifyService } from '../../core/notify.service';
     h1 { font-size: 22px; font-weight: 500; }
     .tag-filter { display: block; margin-bottom: 12px; }
     .directions { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; }
-    .counters { display: flex; gap: 32px; padding: 8px 0; }
+    .counters { display: flex; gap: 24px; flex-wrap: wrap; padding: 8px 0; }
     .counter { display: flex; flex-direction: column; align-items: center; }
     .number { font-size: 32px; font-weight: 600; }
     .number.due { color: var(--mat-sys-primary); }
     .number.new { color: var(--mat-sys-tertiary); }
-    .label { font-size: 13px; color: var(--mat-sys-on-surface-variant); }
+    /* Retrospective stat, so it stays muted next to the two actionable counters. */
+    .number.reviewed { color: var(--mat-sys-on-surface-variant); }
+    .label { font-size: 13px; color: var(--mat-sys-on-surface-variant); white-space: nowrap; }
     mat-card-actions { padding: 0 16px 16px; }
   `,
 })

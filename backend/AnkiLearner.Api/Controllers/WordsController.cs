@@ -142,6 +142,18 @@ public class WordsController(
         return NoContent();
     }
 
+    /// <summary>Forgets this word's SRS progress in every direction, so it is offered as new
+    /// again. The word itself, its translations and its tags are untouched (spec FR-D8).</summary>
+    [HttpDelete("{id:guid}/progress")]
+    public async Task<IActionResult> ResetProgress(Guid id, CancellationToken ct)
+    {
+        var owned = await db.Words.AnyAsync(w => w.Id == id && w.UserId == currentUser.UserId, ct);
+        if (!owned) return NotFound();
+
+        await db.SrsStates.Where(s => s.WordId == id).ExecuteDeleteAsync(ct);
+        return NoContent();
+    }
+
     /// <summary>Words visible right now: the user's words in their current learning language.</summary>
     private async Task<IQueryable<Word>> ScopedWordsAsync(CancellationToken ct)
     {

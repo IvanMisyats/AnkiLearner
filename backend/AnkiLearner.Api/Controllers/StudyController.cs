@@ -34,7 +34,8 @@ public class StudyController(
             var newCount = await NewWords(scope.Words, exercise).CountAsync(ct);
             // The daily-new allowance is global per exercise, not per tag filter.
             var allowance = await NewAllowanceAsync(scope.AllWords, exercise, scope.Settings.DailyNewLimit, now, ct);
-            counts.Add(new StudyCountsDto(exercise, due, Math.Min(newCount, allowance)));
+            var reviewedToday = await ReviewedTodayAsync(scope.Words, exercise, now, ct);
+            counts.Add(new StudyCountsDto(exercise, due, Math.Min(newCount, allowance), reviewedToday));
         }
         return counts;
     }
@@ -161,6 +162,17 @@ public class StudyController(
         var introducedToday = await db.SrsStates.CountAsync(s =>
             s.Exercise == exercise && s.CreatedAt >= todayUtc && words.Any(w => w.Id == s.WordId), ct);
         return Math.Max(0, dailyLimit - introducedToday);
+    }
+
+    /// <summary>Distinct words reviewed today (UTC day, per exercise). Only the latest review is
+    /// kept per state, so several presses on the same word count once, and resetting or deleting a
+    /// word drops it out of today's number.</summary>
+    private async Task<int> ReviewedTodayAsync(
+        IQueryable<Word> words, ExerciseType exercise, DateTime now, CancellationToken ct)
+    {
+        var todayUtc = now.Date;
+        return await db.SrsStates.CountAsync(s =>
+            s.Exercise == exercise && s.LastReviewed >= todayUtc && words.Any(w => w.Id == s.WordId), ct);
     }
 
     private async Task<int> RemainingAsync(

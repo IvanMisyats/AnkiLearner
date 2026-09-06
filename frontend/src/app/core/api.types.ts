@@ -135,4 +135,6 @@ export interface StudyCountsDto {
   exercise: ExerciseType;
   due: number;
   new: number;
+  /** Distinct words reviewed since 00:00 UTC in this direction. */
+  reviewedToday: number;
 }

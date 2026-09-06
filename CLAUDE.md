@@ -128,6 +128,13 @@ interval (they only diverged a review later, via ease), so all three button hint
 (1.2), easy bonus (1.3) and easy interval (4 d), capped by `UserSettings.MaxIntervalDays`
 (default 36500, editable in Settings). See spec §5.
 
+**Reset progress + reviewed-today counter** (2026-09-06): `DELETE /api/words/{id}/progress`
+drops a word's SRS states in every direction (button in the word edit form, behind the new
+`ConfirmService` Material dialog in `core/confirm.service.ts`). `/api/study/counts` gained
+`reviewedToday`, shown as a third dashboard counter — derived from `SrsState.LastReviewed`
+against the UTC day, so repeat presses on one word count once and a reset removes it from the
+total. No schema change; see spec FR-D8 / FR-R1.
+
 **API tokens** (2026-07-28): `[Authorize]` endpoints accept either a SPA JWT or a long-lived
 `ankl_…` personal access token, routed by a policy scheme in `Program.cs`. Added so external
 clients — starting with the `danish-word` Claude skill in `~/.claude/skills/` — can add words

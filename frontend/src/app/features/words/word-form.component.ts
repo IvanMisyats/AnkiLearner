@@ -12,6 +12,7 @@ import { firstValueFrom } from 'rxjs';
 import { LookupApi, TagsApi, WordsApi } from '../../core/api.services';
 import { SaveWordRequest, WordLookupResult } from '../../core/api.types';
 import { AuthService } from '../../core/auth.service';
+import { ConfirmService } from '../../core/confirm.service';
 import { NotifyService } from '../../core/notify.service';
 
 /**
@@ -135,6 +136,15 @@ import { NotifyService } from '../../core/notify.service';
             }
           </button>
           <a mat-button routerLink="/words">Cancel</a>
+          @if (wordId) {
+            <!-- type="button" matters: inside a <form> a bare <button> submits it. -->
+            <button
+              mat-button type="button" class="reset-button"
+              [disabled]="resetting()" (click)="resetProgress()">
+              <mat-icon>restart_alt</mat-icon>
+              Reset progress
+            </button>
+          }
         </div>
       </form>
     </div>
@@ -156,7 +166,9 @@ import { NotifyService } from '../../core/notify.service';
     .translation-card { margin-bottom: 12px; }
     .translation-lang { font-weight: 500; margin-bottom: 8px; }
     .full { width: 100%; }
-    .buttons { display: flex; gap: 12px; margin-top: 8px; }
+    .buttons { display: flex; gap: 12px; margin-top: 8px; align-items: center; }
+    /* Destructive and rare, so it sits apart from Save/Cancel. */
+    .reset-button { margin-left: auto; color: var(--mat-sys-error); }
   `,
 })
 export class WordFormComponent implements OnInit {
@@ -165,6 +177,7 @@ export class WordFormComponent implements OnInit {
   private readonly lookupApi = inject(LookupApi);
   private readonly auth = inject(AuthService);
   private readonly notify = inject(NotifyService);
+  private readonly confirm = inject(ConfirmService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly formBuilder = inject(FormBuilder);
@@ -172,6 +185,7 @@ export class WordFormComponent implements OnInit {
   readonly lookupAvailable = signal(false);
   readonly lookingUp = signal(false);
   readonly saving = signal(false);
+  readonly resetting = signal(false);
   readonly duplicateId = signal<string | null>(null);
   readonly tagNames = signal<string[]>([]);
   readonly allTags = signal<string[]>([]);
@@ -287,6 +301,34 @@ export class WordFormComponent implements OnInit {
 
   languageLabel(code: string): string {
     return `Translation — ${code.toUpperCase()}`;
+  }
+
+  /** Forgets the word's SRS progress in both directions, after a confirmation (spec FR-D8). */
+  async resetProgress(): Promise<void> {
+    // Capture the id up front: the route subscription can swap wordId while the
+    // dialog is open (following the duplicate-warning link), and the DELETE must
+    // still target the word the user was looking at.
+    const id = this.wordId;
+    if (!id) return;
+    const confirmed = await this.confirm.ask({
+      title: 'Reset progress?',
+      message:
+        'This word will be scheduled as new again in both study directions. ' +
+        'Its translations, tags and notes are kept.',
+      confirmText: 'Reset',
+      destructive: true,
+    });
+    if (!confirmed) return;
+
+    this.resetting.set(true);
+    try {
+      await firstValueFrom(this.wordsApi.resetProgress(id));
+      this.notify.success('Progress reset.');
+    } catch (error) {
+      this.notify.httpError(error);
+    } finally {
+      this.resetting.set(false);
+    }
   }
 
   async save(): Promise<void> {
