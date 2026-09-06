@@ -41,7 +41,7 @@ hosted). Reuse the POC's **domain logic and research**, not its delivery mechani
 | 5 | API key | **Server-level key** (operator-provided env/config); AI degrades gracefully if absent |
 | 6 | Text format | **Sanitized HTML** for word/translation content (round-trips with Anki) |
 | 7 | Organization | **Tags + study-all** (flat dictionary, free-form tags, filter studies by tag) |
-| 8 | SRS | **SM-2** for v1 (FSRS is a future option) |
+| 8 | SRS | **SM-2** for v1 + Anki's hard-factor/easy-bonus grade modifiers and a per-user max interval (FSRS is a future option) |
 | 9 | Backend | **.NET 10 Web API** (controllers), EF Core, layered projects |
 | 10 | Frontend | **Angular** (latest stable, standalone components + signals) + Angular Material. Re-confirmed 2026-07-02 over Blazor — but see the frontend-clarity convention below |
 | 11 | Database | **PostgreSQL** |
@@ -121,6 +121,12 @@ AnkiLearner/                  # repo root
 (auth/dictionary/study/import/settings) with unit tests. Verified against the real
 AnkiDroid export (947 notes → 944 words + 1424 SRS states). Phase 9 (Docker images,
 CI/CD, reverse proxy) is done and deployed to `anki.misyats.com`.
+
+**Grade-aware intervals** (2026-09-06): textbook SM-2 gave Hard/Good/Easy the same next
+interval (they only diverged a review later, via ease), so all three button hints read alike.
+`Sm2.Apply` now keeps the SM-2 ladder as the Good baseline and layers on Anki's hard factor
+(1.2), easy bonus (1.3) and easy interval (4 d), capped by `UserSettings.MaxIntervalDays`
+(default 36500, editable in Settings). See spec §5.
 
 **API tokens** (2026-07-28): `[Authorize]` endpoints accept either a SPA JWT or a long-lived
 `ankl_…` personal access token, routed by a policy scheme in `Program.cs`. Added so external

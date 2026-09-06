@@ -42,4 +42,5 @@ public record SaveTagRequest([Required, MaxLength(100)] string Name);
 public record UpdateSettingsRequest(
     [Required, MaxLength(20)] string LearningLanguage,
     [Required, MinLength(1)] List<string> KnownLanguages,
-    [Range(0, 1000)] int DailyNewLimit);
+    [Range(0, 1000)] int DailyNewLimit,
+    [Range(1, 36500)] int? MaxIntervalDays = null);

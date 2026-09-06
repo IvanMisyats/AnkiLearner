@@ -65,6 +65,64 @@ public class Sm2Tests
     }
 
     [Fact]
+    public void Easy_OnNewCard_GraduatesToTheEasyInterval()
+    {
+        var s = Fresh();
+        Sm2.Apply(s, ReviewGrade.Easy, Now);
+        Assert.Equal(4, s.IntervalDays); // Anki's easy interval, vs 1 d for Good/Hard
+    }
+
+    // The bug this scheme fixes: textbook SM-2 gave Hard/Good/Easy the same interval,
+    // so the three buttons were indistinguishable on every mature card.
+    [Fact]
+    public void MatureCard_Hard_Good_Easy_AllDiffer()
+    {
+        var s = new SrsState { IntervalDays = 80, EaseFactor = 2.5, Repetitions = 5 };
+
+        Assert.Equal(96, Sm2.PreviewDays(s, ReviewGrade.Hard));  // 80 × 1.2
+        Assert.Equal(200, Sm2.PreviewDays(s, ReviewGrade.Good)); // 80 × 2.5
+        Assert.Equal(260, Sm2.PreviewDays(s, ReviewGrade.Easy)); // 80 × 2.5 × 1.3
+    }
+
+    [Fact]
+    public void Hard_StaysBelowGood_EvenAtTheEaseFloor()
+    {
+        // 1.3 is the lowest ease a card can reach — the narrowest Hard/Good gap possible.
+        // The Math.Min in Apply is the belt-and-braces guard behind this.
+        var s = new SrsState { IntervalDays = 10, EaseFactor = 1.3, Repetitions = 5 };
+
+        var hard = Sm2.PreviewDays(s, ReviewGrade.Hard);
+        var good = Sm2.PreviewDays(s, ReviewGrade.Good);
+        Assert.Equal(12, hard);
+        Assert.Equal(13, good);
+        Assert.True(hard <= good);
+    }
+
+    [Fact]
+    public void MaxIntervalDays_CapsEveryPassingGrade()
+    {
+        var s = new SrsState { IntervalDays = 200, EaseFactor = 2.5, Repetitions = 5 };
+
+        Assert.Equal(180, Sm2.PreviewDays(s, ReviewGrade.Good, maxIntervalDays: 180));
+        Assert.Equal(180, Sm2.PreviewDays(s, ReviewGrade.Easy, maxIntervalDays: 180));
+        Assert.Equal(180, Sm2.PreviewDays(s, ReviewGrade.Hard, maxIntervalDays: 180));
+
+        Sm2.Apply(s, ReviewGrade.Good, Now, maxIntervalDays: 180);
+        Assert.Equal(180, s.IntervalDays);
+        Assert.Equal(Now.AddDays(180), s.Due);
+    }
+
+    [Fact]
+    public void MaxIntervalDays_DoesNotAffectAgain()
+    {
+        var s = new SrsState { IntervalDays = 200, EaseFactor = 2.5, Repetitions = 5 };
+        Sm2.Apply(s, ReviewGrade.Again, Now, maxIntervalDays: 180);
+
+        Assert.Equal(0, s.IntervalDays);
+        Assert.Equal(Now.AddMinutes(10), s.Due);
+    }
+
+    [Fact]
     public void EaseFactor_NeverDropsBelowFloor()
     {
         var s = Fresh();

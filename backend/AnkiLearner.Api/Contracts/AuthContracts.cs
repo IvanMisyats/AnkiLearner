@@ -14,7 +14,8 @@ public record LoginRequest(
 
 public record UserDto(Guid Id, string Email);
 
-public record SettingsDto(string LearningLanguage, List<string> KnownLanguages, int DailyNewLimit);
+public record SettingsDto(
+    string LearningLanguage, List<string> KnownLanguages, int DailyNewLimit, int MaxIntervalDays);
 
 public record AuthResponse(string AccessToken, UserDto User);
 

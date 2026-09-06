@@ -28,7 +28,9 @@ describe('AuthService', () => {
     await Promise.resolve(); // let the login promise continue to the /me call
     http.expectOne('/api/auth/me').flush({
       user: { id: 'u1', email: 'a@b.c' },
-      settings: { learningLanguage: 'da', knownLanguages: ['en'], dailyNewLimit: 20 },
+      settings: {
+        learningLanguage: 'da', knownLanguages: ['en'], dailyNewLimit: 20, maxIntervalDays: 36500,
+      },
     });
     await login;
 

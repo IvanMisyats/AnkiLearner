@@ -69,6 +69,12 @@ import { NotifyService } from '../../core/notify.service';
             <input matInput type="number" min="0" max="1000" [(ngModel)]="dailyNewLimit" />
           </mat-form-field>
 
+          <mat-form-field appearance="outline" class="full">
+            <mat-label>Maximum interval (days)</mat-label>
+            <input matInput type="number" min="1" max="36500" [(ngModel)]="maxIntervalDays" />
+            <mat-hint>A card is never scheduled further out than this. Anki's default is 36500.</mat-hint>
+          </mat-form-field>
+
           <button mat-flat-button (click)="save()" [disabled]="saving()">Save settings</button>
         </mat-card-content>
       </mat-card>
@@ -93,6 +99,7 @@ export class SettingsComponent implements OnInit {
   readonly saving = signal(false);
   learningLanguage = '';
   dailyNewLimit = 20;
+  maxIntervalDays = 36500;
 
   readonly addableLanguages = computed(() =>
     this.languages().filter(
@@ -106,6 +113,7 @@ export class SettingsComponent implements OnInit {
       this.learningLanguage = settings.learningLanguage;
       this.knownLanguages.set([...settings.knownLanguages]);
       this.dailyNewLimit = settings.dailyNewLimit;
+      this.maxIntervalDays = settings.maxIntervalDays;
     }
     firstValueFrom(this.settingsApi.languages())
       .then((languages) => this.languages.set(languages))
@@ -139,6 +147,7 @@ export class SettingsComponent implements OnInit {
         learningLanguage: this.learningLanguage,
         knownLanguages: this.knownLanguages(),
         dailyNewLimit: Number(this.dailyNewLimit) || 0,
+        maxIntervalDays: Number(this.maxIntervalDays) || 36500,
       }));
       this.auth.refreshSettings(updated);
       this.notify.success('Settings saved.');

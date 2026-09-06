@@ -19,7 +19,7 @@ public class SettingsController(
     public async Task<ActionResult<SettingsDto>> Get(CancellationToken ct)
     {
         var settings = await settingsService.GetOrCreateAsync(currentUser.UserId, ct);
-        return new SettingsDto(settings.LearningLanguage, settings.KnownLanguages, settings.DailyNewLimit);
+        return ToDto(settings);
     }
 
     [HttpPut]
@@ -42,11 +42,15 @@ public class SettingsController(
         settings.LearningLanguage = request.LearningLanguage;
         settings.KnownLanguages = known;
         settings.DailyNewLimit = request.DailyNewLimit;
+        if (request.MaxIntervalDays is { } max) settings.MaxIntervalDays = max;
         settings.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync(ct);
 
-        return new SettingsDto(settings.LearningLanguage, settings.KnownLanguages, settings.DailyNewLimit);
+        return ToDto(settings);
     }
+
+    private static SettingsDto ToDto(Core.Entities.UserSettings s) =>
+        new(s.LearningLanguage, s.KnownLanguages, s.DailyNewLimit, s.MaxIntervalDays);
 }
 
 [ApiController]

@@ -50,6 +50,7 @@ describe('StudyComponent', () => {
       learningLanguage: 'da',
       knownLanguages: ['en', 'uk'],
       dailyNewLimit: 20,
+      maxIntervalDays: 36500,
     });
   });
 
@@ -91,6 +92,7 @@ describe('StudyComponent', () => {
       learningLanguage: 'da',
       knownLanguages: ['uk', 'en'],
       dailyNewLimit: 20,
+      maxIntervalDays: 36500,
     });
     const fixture = await renderCard();
 

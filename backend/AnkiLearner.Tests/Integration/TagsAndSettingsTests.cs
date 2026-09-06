@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using AnkiLearner.Api.Contracts;
+using AnkiLearner.Core.Srs;
 
 namespace AnkiLearner.Tests.Integration;
 
@@ -68,14 +69,41 @@ public class TagsAndSettingsTests(ApiFactory factory) : IClassFixture<ApiFactory
         var client = await factory.CreateAuthenticatedClientAsync();
 
         var updated = await (await client.PutAsJsonAsync("/api/settings",
-                new { learningLanguage = "da", knownLanguages = new[] { "en", "uk" }, dailyNewLimit = 10 }))
+                new
+                {
+                    learningLanguage = "da",
+                    knownLanguages = new[] { "en", "uk" },
+                    dailyNewLimit = 10,
+                    maxIntervalDays = 365,
+                }))
             .ReadAsAsync<SettingsDto>();
         Assert.Equal(["en", "uk"], updated.KnownLanguages);
         Assert.Equal(10, updated.DailyNewLimit);
+        Assert.Equal(365, updated.MaxIntervalDays);
 
         var fetched = await (await client.GetAsync("/api/settings")).ReadAsAsync<SettingsDto>();
         Assert.Equal("da", fetched.LearningLanguage);
         Assert.Equal(["en", "uk"], fetched.KnownLanguages);
+        Assert.Equal(365, fetched.MaxIntervalDays);
+    }
+
+    [Fact]
+    public async Task Settings_MaxInterval_DefaultsAndSurvivesAnUpdateThatOmitsIt()
+    {
+        var client = await factory.CreateAuthenticatedClientAsync();
+
+        var initial = await (await client.GetAsync("/api/settings")).ReadAsAsync<SettingsDto>();
+        Assert.Equal(Sm2.DefaultMaxIntervalDays, initial.MaxIntervalDays);
+
+        await client.PutAsJsonAsync("/api/settings",
+            new { learningLanguage = "da", knownLanguages = new[] { "en" }, dailyNewLimit = 5, maxIntervalDays = 90 });
+
+        // Older API clients omit the field entirely — that must not reset the user's choice.
+        var afterOmitted = await (await client.PutAsJsonAsync("/api/settings",
+                new { learningLanguage = "da", knownLanguages = new[] { "en" }, dailyNewLimit = 7 }))
+            .ReadAsAsync<SettingsDto>();
+        Assert.Equal(7, afterOmitted.DailyNewLimit);
+        Assert.Equal(90, afterOmitted.MaxIntervalDays);
     }
 
     [Fact]

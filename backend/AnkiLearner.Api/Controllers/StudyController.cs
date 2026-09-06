@@ -69,7 +69,7 @@ public class StudyController(
             db.SrsStates.Add(state);
         }
 
-        Sm2.Apply(state, request.Grade, now);
+        Sm2.Apply(state, request.Grade, now, settings.MaxIntervalDays);
         await db.SaveChangesAsync(ct);
 
         var nextScope = await ScopeAsync(tag, ct);
@@ -182,11 +182,12 @@ public class StudyController(
             ? (word.Term, translationsHtml)
             : (translationsHtml, word.Term);
 
+        var max = settings.MaxIntervalDays;
         var intervals = new StudyIntervalsDto(
-            FormatInterval(Sm2.PreviewDays(state, ReviewGrade.Again), ReviewGrade.Again),
-            FormatInterval(Sm2.PreviewDays(state, ReviewGrade.Hard), ReviewGrade.Hard),
-            FormatInterval(Sm2.PreviewDays(state, ReviewGrade.Good), ReviewGrade.Good),
-            FormatInterval(Sm2.PreviewDays(state, ReviewGrade.Easy), ReviewGrade.Easy));
+            FormatInterval(Sm2.PreviewDays(state, ReviewGrade.Again, max), ReviewGrade.Again),
+            FormatInterval(Sm2.PreviewDays(state, ReviewGrade.Hard, max), ReviewGrade.Hard),
+            FormatInterval(Sm2.PreviewDays(state, ReviewGrade.Good, max), ReviewGrade.Good),
+            FormatInterval(Sm2.PreviewDays(state, ReviewGrade.Easy, max), ReviewGrade.Easy));
 
         return new StudyCardDto(WordMapper.ToDto(word), prompt, answer, isNew, intervals);
     }

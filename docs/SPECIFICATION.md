@@ -218,6 +218,7 @@ FK (directly or transitively) and are filtered by it. Timestamps in UTC.
 | LearningLanguage | text | BCP-47, e.g. `da` |
 | KnownLanguages | text[] (or JSON) | ordered; first = primary |
 | DailyNewLimit | int | default 20; 0 = unlimited |
+| MaxIntervalDays | int | SRS interval ceiling; default 36500 |
 | CreatedAt / UpdatedAt | timestamptz | |
 
 **Word** (owned by User)
@@ -281,7 +282,7 @@ FK (directly or transitively) and are filtered by it. Timestamps in UTC.
 
 ---
 
-## 5. SRS algorithm (SM-2) — exact spec
+## 5. SRS algorithm (SM-2 + Anki grade modifiers) — exact spec
 
 Ported from the POC (`DanishLearner/src/Services/Sm2.cs`). Buttons map to SM-2 quality:
 
@@ -300,10 +301,20 @@ if q < 3:                      # forgot
     s.IntervalDays = 0
     s.Lapses += 1
 else:
+    previous = s.IntervalDays
     s.Repetitions += 1
-    s.IntervalDays = 1                         if Repetitions == 1
-                     6                          if Repetitions == 2
-                     round(IntervalDays * Ease) otherwise   (min 1)
+
+    # Baseline for a "Good" answer: the SM-2 ladder.
+    good = 1                       if Repetitions == 1
+           6                       if Repetitions == 2
+           previous * Ease         otherwise
+
+    days = min(good, max(1, previous * 1.2))   if q == 3   # Hard
+           4                                    if q == 5 and Repetitions == 1   # Easy, new card
+           good * 1.3                           if q == 5                        # Easy
+           good                                 otherwise                        # Good
+
+    s.IntervalDays = clamp(round(days), 1, MaxIntervalDays)
 
 s.EaseFactor += 0.1 - (5-q)*(0.08 + (5-q)*0.02)
 if s.EaseFactor < 1.3: s.EaseFactor = 1.3
@@ -313,6 +324,14 @@ s.Due = now + 10 minutes    if q < 3
 s.LastReviewed = now
 ```
 
+- **Why the Hard/Easy modifiers.** Textbook SM-2 derives the interval from the ease factor alone,
+  so Hard/Good/Easy all produce the *same* next interval and only diverge one review later, when
+  the changed ease is finally used. That makes the three button hints identical on every mature
+  card. We keep the SM-2 ladder as the Good baseline and add Anki's **hard factor (1.2)**,
+  **easy bonus (1.3)** and **easy interval (4 d)** so the buttons differ when they are pressed.
+  Ease still moves by the SM-2 formula.
+- **`MaxIntervalDays`** is a per-user setting (`UserSettings`, default 36500 — Anki's default).
+  It caps every passing grade; "Again" is unaffected.
 - **Interval preview** for each button (shown on the button) is computed by applying the rule to a
   copy of the state without mutating it.
 - "Again" reschedules within the session (+10 min) without corrupting the day interval.
@@ -333,7 +352,8 @@ Auth via `Authorization: Bearer <jwt>` except register/login/refresh. All list e
 
 **Settings**
 - `GET /api/settings`
-- `PUT /api/settings` `{ learningLanguage, knownLanguages[], dailyNewLimit }`
+- `PUT /api/settings` `{ learningLanguage, knownLanguages[], dailyNewLimit, maxIntervalDays? }`
+  (`maxIntervalDays` is optional; omitting it leaves the stored value unchanged)
 - `GET /api/languages` → catalog `[{ code, name }]`
 
 **Words**

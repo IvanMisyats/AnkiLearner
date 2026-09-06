@@ -10,6 +10,8 @@ export interface SettingsDto {
   learningLanguage: string;
   knownLanguages: string[];
   dailyNewLimit: number;
+  /** Ceiling on the SRS interval, in days. */
+  maxIntervalDays: number;
 }
 
 export interface AuthResponse {

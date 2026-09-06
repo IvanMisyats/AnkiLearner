@@ -14,6 +14,9 @@ public class UserSettings
     /// <summary>Max new words introduced per day per exercise. 0 = unlimited.</summary>
     public int DailyNewLimit { get; set; } = 20;
 
+    /// <summary>Ceiling on the SRS interval, in days. Caps runaway intervals on mature cards.</summary>
+    public int MaxIntervalDays { get; set; } = Srs.Sm2.DefaultMaxIntervalDays;
+
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }
 }
