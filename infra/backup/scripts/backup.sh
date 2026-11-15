@@ -61,7 +61,9 @@ restic -r "${RESTIC_REPO}" backup \
     /etc/nginx/conf.d/anki.misyats.com.conf
 
 # --- Retention ---
-restic -r "${RESTIC_REPO}" forget --tag db --host "${RESTIC_HOST}" \
+# `--group-by host,tags`: forget groups by host+paths by default, and the dated --stdin-filename
+# gives every dump a unique path, so each snapshot was its own group and nothing ever expired.
+restic -r "${RESTIC_REPO}" forget --tag db --host "${RESTIC_HOST}" --group-by host,tags \
     --keep-daily 7 --keep-weekly 4 --keep-monthly 12 --prune
 
 restic -r "${RESTIC_REPO}" forget --tag files --host "${RESTIC_HOST}" \
