@@ -1,5 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
+  <PropertyGroup>
+    <!-- Local dev secrets (e.g. Anthropic:ApiKey) live outside the repo, in
+         %APPDATA%\Microsoft\UserSecrets\<id>\secrets.json. Loaded only in Development. -->
+    <UserSecretsId>42272e43-1d8b-4ec9-b58f-b3e33fe41325</UserSecretsId>
+  </PropertyGroup>
+
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
     <PackageReference Include="Microsoft.OpenApi" />

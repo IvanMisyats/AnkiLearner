@@ -39,6 +39,11 @@ ScaffoldingReadMe.txt
 # dotenv environment variables file
 .env
 
+# Filled-in copies of the production env templates hold real secrets. Only the *.example files
+# belong in git; the real files live on the VPS.
+infra/app.env
+infra/backup/backup.env
+
 # Node / Angular
 node_modules/
 dist/

@@ -426,10 +426,33 @@ public class ClaudeLookupProviderTests
         var provider = new ClaudeLookupProvider(Options.Create(new AnthropicOptions { ApiKey = "" }));
 
         Assert.False(provider.IsAvailable);
-        Assert.Equal("Claude (claude-haiku-4-5)", provider.Name);
+        Assert.Equal("Claude (claude-haiku-5-5)", provider.Name);
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => provider.LookupAsync("hund", "da", ["en"], CancellationToken.None));
         await Assert.ThrowsAsync<InvalidOperationException>(
             () => provider.TranslateAsync("hund", null, "da", ["en"], CancellationToken.None));
+    }
+
+    [Fact]
+    public void BuildOutputConfig_SendsConfiguredEffort()
+    {
+        var json = JsonSerializer.Serialize(
+            ClaudeLookupProvider.BuildOutputConfig(ClaudeLookupProvider.BuildSchema(["en"]), " Low "));
+
+        Assert.Contains("\"effort\":\"low\"", json);
+        Assert.Contains("\"format\"", json);
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("default")]
+    public void BuildOutputConfig_OmitsEffort_WhenBlankOrDefault(string? effort)
+    {
+        var json = JsonSerializer.Serialize(
+            ClaudeLookupProvider.BuildOutputConfig(ClaudeLookupProvider.BuildSchema(["en"]), effort));
+
+        Assert.DoesNotContain("effort", json);
+        Assert.Contains("\"format\"", json);
     }
 }

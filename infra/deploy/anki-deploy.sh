@@ -11,6 +11,10 @@
 #      $SSH_ORIGINAL_COMMAND is ignored on purpose — whatever the client asks for, this runs.
 #   2. anki-deploy.timer (user unit), every 5 minutes, as a fallback.
 #
+# It converges on a new image AND on an edited app.env / docker-compose.yml, so changing a
+# setting (AI model, effort, API key, ...) is: edit app.env as root, then wait for the timer or
+#   sudo machinectl shell anki@ /usr/local/bin/anki-deploy
+#
 # Rollback: set IMAGE_TAG=sha-<short> in app.env (as root), then trigger a deploy.
 
 set -euo pipefail
@@ -54,15 +58,25 @@ after="$(docker image inspect --format '{{.Id}}' "${IMAGE}" 2>/dev/null || echo 
 
 running="$(docker ps --quiet --filter 'name=ankilearner-api')"
 
-if [[ "${before}" == "${after}" && -n "${running}" ]]; then
-    log "image unchanged and stack is up — nothing to do."
+# Configuration drift. Compose labels every container with a hash of its service's resolved
+# config, interpolated app.env values included; `config --hash` computes the same hash from the
+# files as they are now. Any difference means app.env or the compose file was edited since the
+# containers were created.
+wanted_config="$(compose config --hash '*' | sort)" || fail "docker compose config --hash failed"
+running_config="$(docker ps --all --filter 'label=com.docker.compose.project=ankilearner' \
+    --format '{{.Label "com.docker.compose.service"}} {{.Label "com.docker.compose.config-hash"}}' | sort)"
+
+if [[ "${before}" == "${after}" && -n "${running}" && "${wanted_config}" == "${running_config}" ]]; then
+    log "image and configuration unchanged, stack is up — nothing to do."
     exit 0
 fi
 
-if [[ "${before}" == "${after}" ]]; then
+if [[ "${before}" != "${after}" ]]; then
+    log "new image ${before:0:19} -> ${after:0:19}"
+elif [[ -z "${running}" ]]; then
     log "image unchanged, but the stack is not running — starting it."
 else
-    log "new image ${before:0:19} -> ${after:0:19}"
+    log "configuration changed (app.env or docker-compose.yml) — applying."
 fi
 
 # `up -d` is declarative: it recreates only what changed. No `down` first — that would turn every

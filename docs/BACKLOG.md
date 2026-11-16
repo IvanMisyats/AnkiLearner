@@ -48,7 +48,6 @@
 
 ## Follow-ups (improvements, not defects)
 - **Word form → Translate:** saving a word opened from a Translate card returns to `/words`, not back to Translate. A validated `returnTo` query param would do it.
-- **Model upgrade:** `claude-haiku-5-5` is about 10× cheaper than `claude-haiku-4-5`. Adaptive thinking is on by default there, which adds latency and spends `MaxTokens`, so lower the effort (or turn thinking off where the API allows) and re-measure latency. It's a config change plus a small request-shape change.
 - **Two-stage translate** if real latency disappoints: return the plain translation first, then the cards.
 - **Translation history** (searchable list of past lookups): explicitly out of scope for Translate mode v1.
 - **EF Core `MultipleCollectionIncludeWarning`** in the API log on word queries: consider `AsSplitQuery()` where several collections are included.

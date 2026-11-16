@@ -38,6 +38,17 @@ dotnet run --project backend/AnkiLearner.Api   # API on http://localhost:5080 (m
 cd frontend && npm install && npm start        # SPA on http://localhost:4200, proxies /api
 ```
 
+AI lookup needs a Claude API key (platform.claude.com → Settings → API keys). Locally, keep it in
+.NET user-secrets — stored outside the repo, loaded only in Development:
+
+```powershell
+dotnet user-secrets set "Anthropic:ApiKey" (Get-Clipboard) --project backend/AnkiLearner.Api
+```
+
+In production it is `ANTHROPIC_API_KEY` in `app.env`, alongside `ANTHROPIC_MODEL` /
+`ANTHROPIC_EFFORT` — the one file for production settings; edits apply within 5 minutes
+(see `infra/app.env.example` and the Operations section of `infra/README.md`).
+
 ## Configuration
 
 | Key | Required | Default | Purpose |
@@ -50,8 +61,9 @@ cd frontend && npm install && npm start        # SPA on http://localhost:4200, p
 | `RateLimiting:AuthPerMinute` | no | `20` | Per-IP limit on credential endpoints |
 | `RateLimiting:LookupPerMinute` | no | `20` | Per-user limit on AI calls; word lookup and translate share it |
 | `Anthropic:ApiKey` | no | *(empty — AI lookup and translate disabled)* | Server-level Claude API key; the bare `ANTHROPIC_API_KEY` env var also works |
-| `Anthropic:Model` | no | `claude-haiku-4-5` | Model used for word lookup and translate |
-| `Anthropic:MaxTokens` | no | `4096` | Output-token cap per AI call — only a ceiling; a truncated answer is a 502 |
+| `Anthropic:Model` | no | `claude-haiku-5-5` | Model used for word lookup and translate — any Claude model id |
+| `Anthropic:Effort` | no | `low` | Thinking depth (`low`…`max`); `default` sends none — needed for models without effort support (e.g. `claude-haiku-4-5`) |
+| `Anthropic:MaxTokens` | no | `4096` | Output cap per AI call, thinking included — only a ceiling; a truncated answer is a 502 |
 | `Anthropic:TimeoutSeconds` | no | `30` | Total time limit per AI call, SDK retries included; exceeded ⇒ 502 |
 | `Import:MaxUploadBytes` | no | `52428800` (50 MB) | Size cap for uploaded `.apkg` files |
 

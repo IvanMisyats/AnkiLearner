@@ -17,6 +17,8 @@
 | [0007](#adr-0007--citation-form-and-article-insensitive-matching) | 2026-11-16 | Citation form and article-insensitive matching | Accepted |
 | [0008](#adr-0008--newest-first-new-cards-and-study-again) | 2026-11-16 | Newest-first new cards and Study again | Accepted |
 | [0009](#adr-0009--installable-app-without-a-service-worker) | 2026-11-16 | Installable app without a service worker | Accepted |
+| [0010](#adr-0010--claude-haiku-55-model-and-effort-in-config) | 2026-11-16 | Claude Haiku 5.5; model and effort in config | Accepted |
+| [0011](#adr-0011--appenv-edits-apply-without-a-redeploy) | 2026-11-16 | `app.env` edits apply without a redeploy | Accepted |
 
 ---
 
@@ -167,3 +169,33 @@
   - Very long GET shares get a 414.
   - The first deploy needs a one-time Cloudflare purge, because the old favicon was cached as immutable.
 - **Links:** `infra/README.md` → Android app (PWA), smoke test.
+
+## ADR-0010 — Claude Haiku 5.5; model and effort in config
+- **Status:** Accepted (2026-11-16).
+- **Context:**
+  - `claude-haiku-5-5` costs about a tenth of `claude-haiku-4-5` ($0.10 / $0.50 vs $1 / $5 per million input / output tokens).
+  - It thinks by default (adaptive thinking, default effort `medium`), which adds latency and output tokens. `claude-haiku-4-5` rejects the effort parameter.
+  - The model id was a code default, so every new model needed a code change.
+- **Decision:**
+  - `Anthropic:Model` defaults to `claude-haiku-5-5` and `Anthropic:Effort` to `low`. Both apply to word lookup and Translate, which share one request path (`ClaudeLookupProvider.CreateAsync`).
+  - Effort goes out as `output_config.effort`. `default` (or empty) sends none, so a model without effort support still works.
+  - Thinking stays on; effort is the only knob. Thinking blocks come back empty and are skipped; only the text block is parsed.
+  - `MaxTokens` (4096) now includes thinking. `TimeoutSeconds` (30) is unchanged.
+  - Production sets `ANTHROPIC_MODEL` / `ANTHROPIC_EFFORT` in `app.env`; locally the key lives in user-secrets (`UserSecretsId` on the API project).
+- **Consequences:**
+  - Rolling back is config only: `Anthropic:Model=claude-haiku-4-5`, `Anthropic:Effort=default`.
+  - Latency against Haiku 4.5 is not measured yet. If translations hit the 30 s timeout, lower the effort or raise `TimeoutSeconds`.
+  - A refusal still ends as a 502 (`EnsureCompleted`); Haiku 5.5 has no server-side refusal fallback.
+
+## ADR-0011 — `app.env` edits apply without a redeploy
+- **Status:** Accepted (2026-11-16).
+- **Context:**
+  - `anki-deploy` compared only image IDs. An edit to `app.env` (a new model, effort or key) sat unapplied until the next image shipped, and the 5-minute timer did nothing either.
+  - With the model now in config (ADR-0010), changing a setting should not need a code push.
+- **Decision:**
+  - `anki-deploy` also compares `docker compose config --hash` (computed from the files as they are now) with the config-hash label on the running containers. Any difference runs `up -d`, which recreates only the changed services.
+  - `app.env` is the one production settings file; `app.env.example` lists the AI settings first.
+  - The API still gets only the variables compose maps for it, not the whole file: `app.env` holds the Postgres superuser password, which the API never sees.
+- **Consequences:**
+  - An `app.env` edit takes effect within 5 minutes, or at once with `sudo machinectl shell anki@ /usr/local/bin/anki-deploy`.
+  - The script is installed on the host by hand, not shipped by CD. It takes effect only after it is reinstalled there (`infra/README.md`).

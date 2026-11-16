@@ -68,10 +68,7 @@ public class ClaudeLookupProvider : IWordLookupProvider
                 Model = _options.Model,
                 MaxTokens = _options.MaxTokens,
                 System = system,
-                OutputConfig = new OutputConfig
-                {
-                    Format = new JsonOutputFormat { Schema = schema },
-                },
+                OutputConfig = BuildOutputConfig(schema, _options.Effort),
                 Messages = [new() { Role = Role.User, Content = userMessage }],
             }, cancellationToken: token),
             TimeSpan.FromSeconds(Math.Max(1, _options.TimeoutSeconds)),
@@ -79,6 +76,7 @@ public class ClaudeLookupProvider : IWordLookupProvider
 
         EnsureCompleted(response.StopReason?.Raw(), response.Usage.OutputTokens);
 
+        // Thinking models (claude-haiku-5-5) also return thinking blocks; the answer is the text block.
         var json = response.Content
             .Select(b => b.Value)
             .OfType<TextBlock>()
@@ -89,6 +87,13 @@ public class ClaudeLookupProvider : IWordLookupProvider
             throw new InvalidOperationException("The AI provider returned an empty response.");
         return json;
     }
+
+    /// <summary>Structured output, plus the configured effort unless it is blank or "default".
+    /// The raw string goes through as-is, so effort levels newer than this SDK still work.</summary>
+    public static OutputConfig BuildOutputConfig(Dictionary<string, JsonElement> schema, string? effort) =>
+        string.IsNullOrWhiteSpace(effort) || effort.Trim().Equals("default", StringComparison.OrdinalIgnoreCase)
+            ? new OutputConfig { Format = new JsonOutputFormat { Schema = schema } }
+            : new OutputConfig { Format = new JsonOutputFormat { Schema = schema }, Effort = effort.Trim().ToLowerInvariant() };
 
     /// <summary>Runs <paramref name="call"/> under a total time limit (retries included). Running
     /// out of time is a provider failure (<see cref="TimeoutException"/>); a cancellation of the

@@ -57,7 +57,8 @@ hosted). Reuse the POC's **domain logic and research**, not its delivery mechani
 - **Backend:** ASP.NET Core 10 Web API. Layered: `Api` / `Core` / `Infrastructure` (+ `Tests`).
   ASP.NET Core Identity for the user store, **JWT** access tokens + refresh tokens for the SPA.
 - **ORM / DB:** EF Core 10 + **PostgreSQL** (`Npgsql.EntityFrameworkCore.PostgreSQL`).
-- **AI lookup:** `Anthropic` NuGet SDK, model **`claude-haiku-4-5`**, structured outputs (JSON schema),
+- **AI lookup:** `Anthropic` NuGet SDK, model **`claude-haiku-5-5`** at effort `low` (both config:
+  `Anthropic:Model` / `Anthropic:Effort`, `ANTHROPIC_MODEL` / `ANTHROPIC_EFFORT` in prod), structured outputs (JSON schema),
   behind `IWordLookupProvider`. Other providers (DeepL/Google) can be added later.
 - **HTML safety:** sanitize on write (server, e.g. `Ganss.Xss`) and bind safely on render (Angular
   `DomSanitizer` / DOMPurify). Never render unsanitized user HTML.
@@ -145,13 +146,19 @@ total. No schema change; see spec FR-D8 / FR-R1.
 clients — starting with the `danish-word` Claude skill in `~/.claude/skills/` — can add words
 without a browser session. See the API tokens section of `README.md`.
 
-**Translate mode** (2026-11-16, branch `feature/translate-mode`, awaiting merge + deploy): `/` is a
+**Translate mode** (2026-11-16, merged and deployed): `/` is a
 mode selector (Translate / Learn); `/translate` translates a word/phrase/sentence between the learning
 and known languages via `POST /api/translate` (same Claude provider as lookup) and suggests
 citation-form word cards ("en aftale") with one-tap add, tagged `translated`. Also: article-insensitive
 duplicate matching (`TermNormalizer.MatchCandidates`), new cards served newest-first, "Study again"
 (`POST /api/words/{id}/relearn`), the dashboard moved to `/study`, a safe login `returnUrl`, and an
 installable Android PWA with a share target. Design record and deviations: **`docs/TRANSLATE_PLAN.md`**.
+
+**AI model as config** (2026-11-16): lookup and Translate run on `claude-haiku-5-5` at effort
+`low` (ADR-0010). Key, model and effort are `ANTHROPIC_*` lines in the VPS's `app.env` — the one
+production settings file — and `anki-deploy` applies `app.env` edits on its own (compose
+config-hash drift check, ADR-0011), so a new model needs no code change. See Operations in
+`infra/README.md`.
 
 ## How to run
 
@@ -177,4 +184,6 @@ npx ng test --watch=false
 ```
 
 Server-level AI key (optional; AI lookup degrades gracefully without it):
-`Anthropic:ApiKey` via user-secrets/env `ANTHROPIC_API_KEY`.
+`dotnet user-secrets set "Anthropic:ApiKey" (Get-Clipboard) --project backend/AnkiLearner.Api`
+(or env `ANTHROPIC_API_KEY`). Integration tests swap in a fake provider, so a local key never
+makes them call the API.

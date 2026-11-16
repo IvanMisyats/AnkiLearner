@@ -97,11 +97,16 @@ sudo machinectl shell anki@ /bin/bash -c '
 writable only by root, so a stolen deploy key cannot rewrite the environment its own container
 runs with. Template: `app.env.example`. Real values are in 1Password.
 
+It is the **only** file to edit for a production setting — AI key/model/effort, registration,
+image tag. The compose file maps each variable onto the API's config key; the API container gets
+only those, never the whole file (it holds the Postgres superuser password). A variable the
+installed compose file doesn't know about is silently ignored — see Troubleshooting.
+
 `Jwt:SigningKey` must be ≥32 characters and **unique to this instance**:
 `openssl rand -base64 48`.
 
 Set `ALLOW_REGISTRATION=true` only long enough to create the intended accounts, then set it back
-to `false` and redeploy.
+to `false`.
 
 ## GitHub secrets
 
@@ -140,6 +145,15 @@ alias dc='docker compose --env-file app.env'
 dc ps
 dc logs -f api
 /usr/local/bin/anki-deploy    # pull + converge (same thing CI triggers)
+```
+
+**Change a setting** (AI model, effort, API key, …) — edit `app.env`. `anki-deploy` compares
+compose's config hash with the running containers', so the timer applies the edit within
+5 minutes, recreating only the affected containers. To apply at once:
+
+```bash
+sudo nano /srv/ankilearner/deploy/app.env      # e.g. ANTHROPIC_MODEL=claude-haiku-5-5
+sudo machinectl shell anki@ /usr/local/bin/anki-deploy
 ```
 
 **Rollback** — every build publishes `:sha-<short>`:
@@ -245,3 +259,4 @@ three PNG renders with Pillow:
 | SPA loads, API calls 404 | `MapFallbackToFile` regex — unmatched `/api/*` must 404, not return HTML |
 | `curl --resolve` to the origin fails TLS | Working as intended — Authenticated Origin Pulls |
 | Deploy succeeds but nothing changed | `IMAGE_TAG` pinned to an old `sha-…` in `app.env` |
+| An `app.env` edit has no effect | The installed `docker-compose.yml` predates that variable — reinstall it (Install section) |

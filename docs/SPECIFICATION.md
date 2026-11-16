@@ -603,8 +603,9 @@ All endpoints validate input and return RFC-7807 problem responses on error.
 |---|---|---|
 | `ConnectionStrings:Default` | Postgres connection | required |
 | `Anthropic:ApiKey` (`ANTHROPIC_API_KEY`) | AI lookup + translate key | optional; absent ⇒ AI disabled |
-| `Anthropic:Model` | lookup + translate model | `claude-haiku-4-5` |
-| `Anthropic:MaxTokens` | output cap per AI call (only a ceiling) | `4096` |
+| `Anthropic:Model` | lookup + translate model | `claude-haiku-5-5` |
+| `Anthropic:Effort` | thinking depth; `default` ⇒ not sent | `low` |
+| `Anthropic:MaxTokens` | output cap per AI call, thinking included (only a ceiling) | `4096` |
 | `Anthropic:TimeoutSeconds` | total time limit per AI call, retries included | `30` |
 | `Jwt:Issuer/Audience/SigningKey` | token signing | required (generate per instance) |
 | `Auth:AllowRegistration` | enable self-signup | `true` |

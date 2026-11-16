@@ -38,6 +38,9 @@ services:
       # Set false once the intended accounts exist — this is a private instance.
       - Auth__AllowRegistration=${ALLOW_REGISTRATION:-false}
       - Anthropic__ApiKey=${ANTHROPIC_API_KEY:-}
+      # Defaults match AnthropicOptions; override in app.env (see app.env.example).
+      - Anthropic__Model=${ANTHROPIC_MODEL:-claude-haiku-5-5}
+      - Anthropic__Effort=${ANTHROPIC_EFFORT:-low}
       # Workstation GC: the box is shared and 2 vCPU. Server GC would reserve per-core heaps.
       - DOTNET_gcServer=0
 
