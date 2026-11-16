@@ -111,8 +111,12 @@ interface TranslateError {
             <div>
               <div>{{ error.message }}</div>
               @if (error.suggestLanguage) {
+                <!-- Two causes, two fixes: a language the user hasn't added yet only Settings can
+                     solve; a typo the toggle above can. -->
                 <div class="hint">
-                  A typo can make a word look foreign — pick the language manually above.
+                  Written in another language? Add it in
+                  <a routerLink="/settings">Settings → Languages I know</a>.
+                  A typo can also make a word look foreign — then pick the language above.
                 </div>
               }
             </div>
@@ -181,6 +185,8 @@ interface TranslateError {
       background: var(--mat-sys-error-container); color: var(--mat-sys-on-error-container);
     }
     .hint { margin-top: 4px; }
+    /* The link keeps the error box's colour; the underline marks it as a link. */
+    .hint a { color: inherit; font-weight: 500; }
     .detected, .muted, .lang { color: var(--mat-sys-on-surface-variant); }
     .detected { font-size: 13px; margin-bottom: 4px; }
     .input-translation { display: flex; gap: 8px; font-size: 18px; line-height: 1.4; margin-bottom: 4px; }

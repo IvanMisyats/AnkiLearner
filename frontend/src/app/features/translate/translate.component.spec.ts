@@ -417,7 +417,7 @@ describe('TranslateComponent', () => {
     expect(text()).toContain('Translated from English');
   });
 
-  it('shows the unsupported-language message with a hint to pick the language', async () => {
+  it('shows the unsupported-language message with hints to add or pick the language', async () => {
     await render();
     type('Hund');
     page().querySelector('textarea')!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' }));
@@ -428,7 +428,10 @@ describe('TranslateComponent', () => {
     await refresh();
 
     expect(text()).toContain('Only Danish, English and Ukrainian are supported.');
-    expect(text()).toContain('pick the language manually above');
+    const settingsLink = page().querySelector<HTMLAnchorElement>('.error .hint a')!;
+    expect(settingsLink.textContent).toContain('Languages I know');
+    expect(settingsLink.getAttribute('href')).toBe('/settings');
+    expect(text()).toContain('pick the language above');
     expect(page().querySelector('textarea')!.value).toBe('Hund'); // kept for the retry
   });
 
