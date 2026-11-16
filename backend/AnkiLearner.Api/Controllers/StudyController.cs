@@ -96,7 +96,7 @@ public class StudyController(
         return new StudyScope(settings, allWords, words);
     }
 
-    // --- selection logic (spec FR-R4/FR-R9: due first, then new, then learn-ahead) ---
+    // --- selection logic (spec FR-R4/FR-R9: due first, then new (newest first), then learn-ahead) ---
 
     private async Task<StudyNextResponse> BuildNextAsync(
         StudyScope scope, ExerciseType exercise, CancellationToken ct)
@@ -113,8 +113,11 @@ public class StudyController(
         var allowance = await NewAllowanceAsync(scope.AllWords, exercise, scope.Settings.DailyNewLimit, now, ct);
         if (wordId is null && allowance > 0)
         {
+            // Newest first, so words met today are introduced before the old backlog.
+            // Id breaks ties: an import stamps all its words with one CreatedAt.
             wordId = await NewWords(scope.Words, exercise)
-                .OrderBy(w => w.CreatedAt)
+                .OrderByDescending(w => w.CreatedAt)
+                .ThenByDescending(w => w.Id)
                 .Select(w => (Guid?)w.Id)
                 .FirstOrDefaultAsync(ct);
             isNew = wordId is not null;

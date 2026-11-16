@@ -28,6 +28,8 @@ import { NotifyService } from '../../core/notify.service';
           <input matInput [value]="search()" (input)="onSearch($event)" placeholder="term or translation" />
           <mat-icon matSuffix>search</mat-icon>
         </mat-form-field>
+        <!-- Import is a rare, one-off job, so it lives here rather than in the toolbar. -->
+        <a mat-button routerLink="/import">Import from Anki</a>
         <a mat-flat-button routerLink="/words/new">
           <mat-icon>add</mat-icon>
           Add word
@@ -108,8 +110,13 @@ import { NotifyService } from '../../core/notify.service';
   `,
   styles: `
     .page { padding: 16px; max-width: 900px; margin: 0 auto; }
-    .toolbar-row { display: flex; gap: 12px; align-items: center; margin-bottom: 12px; }
-    .search { flex: 1; }
+    /* When the search box would get narrower than 200px (phones), the buttons wrap onto a
+       second line, aligned right, and the search box takes the whole first line. */
+    .toolbar-row {
+      display: flex; flex-wrap: wrap; justify-content: flex-end;
+      gap: 8px 12px; align-items: center; margin-bottom: 12px;
+    }
+    .search { flex: 1 1 200px; }
     .tag-filter { margin-bottom: 12px; display: block; }
     .center { display: flex; justify-content: center; padding: 32px; }
     .empty { text-align: center; color: var(--mat-sys-on-surface-variant); }

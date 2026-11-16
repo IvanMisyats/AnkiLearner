@@ -51,7 +51,7 @@ jobs:
         run: dotnet test --no-build --verbosity normal
 
   frontend:
-    name: Frontend build
+    name: Frontend build + tests
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -68,6 +68,11 @@ jobs:
       - name: Install
         working-directory: frontend
         run: npm ci
+
+      # Vitest + jsdom, so no browser is needed. ng test watches by default; run once.
+      - name: Test
+        working-directory: frontend
+        run: npx ng test --watch=false
 
       - name: Build
         working-directory: frontend

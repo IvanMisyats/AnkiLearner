@@ -39,9 +39,9 @@ public class LookupController(
             return await provider.LookupAsync(
                 request.Term, settings.LearningLanguage, settings.KnownLanguages, ct);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
         {
-            throw;
+            throw; // the client went away; a provider-side cancellation is a failure (502)
         }
         catch (Exception ex)
         {

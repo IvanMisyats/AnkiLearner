@@ -46,7 +46,7 @@ hosted). Reuse the POC's **domain logic and research**, not its delivery mechani
 | 10 | Frontend | **Angular** (latest stable, standalone components + signals) + Angular Material. Re-confirmed 2026-07-02 over Blazor — but see the frontend-clarity convention below |
 | 11 | Database | **PostgreSQL** |
 | 12 | Packaging | **Docker** (multi-container via compose) |
-| 13 | CI/CD + reverse proxy | **Deferred** — not part of v1. Choose Caddy/Traefik/nginx later. |
+| 13 | CI/CD + reverse proxy | Deferred in v1; since done: GitHub Actions → GHCR → VPS, host nginx + Cloudflare (ADR-0002) |
 | 14 | Anki progress | **Import scheduling state** from `.apkg` (best-effort map of interval/ease/due → SM-2; optional at commit, default on) |
 | 15 | Study model | **Combined directions**: `TargetToKnown` shows all known-language translations together; per-language directions deferred |
 | 16 | Auth scope | **Minimal v1**: register/login/logout + JWT/refresh; no email verification, no password-reset email |
@@ -76,6 +76,8 @@ AnkiLearner/                  # repo root
   README.md
   docs/
     SPECIFICATION.md          # detailed functional + technical spec
+    ADR.md                    # decision/feature records (why + what + cost), append-only
+    BACKLOG.md                # known defects + follow-ups deliberately not fixed yet
     IMPLEMENTATION_PLAN.md    # phased plan for implementing agents
   backend/
     AnkiLearner.slnx          # solution (new XML format; dotnet sln commands work with it)
@@ -113,6 +115,9 @@ AnkiLearner/                  # repo root
 - Temporary files go in the scratchpad, **not** the repo.
 - Be concise and direct in code comments and PRs.
 - New env config keys are documented in `README.md` and have safe defaults / graceful degradation.
+- **Record every significant decision or feature** as a new entry in `docs/ADR.md` (append-only;
+  supersede, don't rewrite). **Log defects found but not fixed** in `docs/BACKLOG.md`, and remove the
+  item in the commit that fixes it. The repo is public: never log unfixed security vulnerabilities.
 
 ## Implementation status
 
@@ -139,6 +144,14 @@ total. No schema change; see spec FR-D8 / FR-R1.
 `ankl_…` personal access token, routed by a policy scheme in `Program.cs`. Added so external
 clients — starting with the `danish-word` Claude skill in `~/.claude/skills/` — can add words
 without a browser session. See the API tokens section of `README.md`.
+
+**Translate mode** (2026-11-16, branch `feature/translate-mode`, awaiting merge + deploy): `/` is a
+mode selector (Translate / Learn); `/translate` translates a word/phrase/sentence between the learning
+and known languages via `POST /api/translate` (same Claude provider as lookup) and suggests
+citation-form word cards ("en aftale") with one-tap add, tagged `translated`. Also: article-insensitive
+duplicate matching (`TermNormalizer.MatchCandidates`), new cards served newest-first, "Study again"
+(`POST /api/words/{id}/relearn`), the dashboard moved to `/study`, a safe login `returnUrl`, and an
+installable Android PWA with a share target. Design record and deviations: **`docs/TRANSLATE_PLAN.md`**.
 
 ## How to run
 

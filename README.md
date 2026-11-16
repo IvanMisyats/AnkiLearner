@@ -18,7 +18,7 @@ This repo is the production rewrite of an earlier proof-of-concept
 - **Backend:** ASP.NET Core 10 Web API, EF Core, ASP.NET Core Identity + JWT
 - **Frontend:** Angular (latest stable) + Angular Material
 - **Database:** PostgreSQL
-- **AI lookup:** Claude Haiku via the `Anthropic` SDK (behind a provider interface)
+- **AI lookup + translate:** Claude Haiku via the `Anthropic` SDK (behind a provider interface)
 - **Packaging:** Docker / docker-compose (CI/CD and production hosting deferred)
 
 ## v1 features
@@ -26,7 +26,9 @@ This repo is the production rewrite of an earlier proof-of-concept
 Multi-user accounts · personal dictionary (CRUD, tags, search) · add words manually or via AI
 lookup (meanings, IPA, part of speech, gender, example) · AnkiDroid `.apkg` import including
 study progress · SM-2 spaced repetition in both directions with inline correction · responsive
-UI (study from a phone browser).
+UI (study from a phone browser) · Translate mode: translate a word, phrase or sentence and add
+the AI-picked words to your dictionary in one tap · installable Android app (PWA) with Translate /
+Learn shortcuts that accepts text shared from other apps.
 
 ## Running locally (development)
 
@@ -46,9 +48,11 @@ cd frontend && npm install && npm start        # SPA on http://localhost:4200, p
 | `Jwt:AccessTokenMinutes` / `Jwt:RefreshTokenDays` | no | `15` / `30` | Token lifetimes |
 | `Auth:AllowRegistration` | no | `true` | Set `false` to close self-signup (single-user instance) |
 | `RateLimiting:AuthPerMinute` | no | `20` | Per-IP limit on credential endpoints |
-| `RateLimiting:LookupPerMinute` | no | `20` | Per-user limit on AI lookups |
-| `Anthropic:ApiKey` | no | *(empty — AI lookup disabled)* | Server-level Claude API key; the bare `ANTHROPIC_API_KEY` env var also works |
-| `Anthropic:Model` | no | `claude-haiku-4-5` | Model used for word lookup |
+| `RateLimiting:LookupPerMinute` | no | `20` | Per-user limit on AI calls; word lookup and translate share it |
+| `Anthropic:ApiKey` | no | *(empty — AI lookup and translate disabled)* | Server-level Claude API key; the bare `ANTHROPIC_API_KEY` env var also works |
+| `Anthropic:Model` | no | `claude-haiku-4-5` | Model used for word lookup and translate |
+| `Anthropic:MaxTokens` | no | `4096` | Output-token cap per AI call — only a ceiling; a truncated answer is a 502 |
+| `Anthropic:TimeoutSeconds` | no | `30` | Total time limit per AI call, SDK retries included; exceeded ⇒ 502 |
 | `Import:MaxUploadBytes` | no | `52428800` (50 MB) | Size cap for uploaded `.apkg` files |
 
 All keys can be provided as environment variables (`Jwt__SigningKey=...`) or via

@@ -3,6 +3,7 @@ using AnkiLearner.Api.Services;
 using AnkiLearner.Core;
 using AnkiLearner.Core.Abstractions;
 using AnkiLearner.Core.Entities;
+using AnkiLearner.Core.Srs;
 using AnkiLearner.Infrastructure.Data;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -70,19 +71,28 @@ public class WordsController(
         return word is null ? NotFound() : ToDto(word);
     }
 
-    /// <summary>Non-blocking duplicate check for the add/edit form (spec FR-W7).</summary>
+    /// <summary>Non-blocking duplicate check for the add/edit form (spec FR-W7). Ignores a
+    /// leading article/particle ("aftale" finds "en aftale"); an exact match wins, then the oldest,
+    /// then the lowest id.</summary>
     [HttpGet("duplicate")]
     public async Task<ActionResult<DuplicateCheckResponse>> CheckDuplicate(
         [FromQuery] string term, [FromQuery] Guid? excludeId, CancellationToken ct)
     {
+        var settings = await settingsService.GetOrCreateAsync(currentUser.UserId, ct);
+        var candidates = TermNormalizer.MatchCandidates(term, settings.LearningLanguage);
+        if (candidates.Count == 0) return new DuplicateCheckResponse(false, null);
         var normalized = TermNormalizer.Normalize(term);
-        if (normalized.Length == 0) return new DuplicateCheckResponse(false, null);
 
-        var query = (await ScopedWordsAsync(ct)).Where(w => w.TermNormalized == normalized);
+        var query = ScopedWords(settings).Where(w => candidates.Contains(w.TermNormalized));
         if (excludeId is not null)
             query = query.Where(w => w.Id != excludeId);
 
-        var match = await query.Select(w => (Guid?)w.Id).FirstOrDefaultAsync(ct);
+        var match = await query
+            .OrderBy(w => w.TermNormalized == normalized ? 0 : 1)
+            .ThenBy(w => w.CreatedAt)
+            .ThenBy(w => w.Id) // imported words share one CreatedAt
+            .Select(w => (Guid?)w.Id)
+            .FirstOrDefaultAsync(ct);
         return new DuplicateCheckResponse(match is not null, match);
     }
 
@@ -154,13 +164,38 @@ public class WordsController(
         return NoContent();
     }
 
-    /// <summary>Words visible right now: the user's words in their current learning language.</summary>
-    private async Task<IQueryable<Word>> ScopedWordsAsync(CancellationToken ct)
+    /// <summary>"Study again": the user forgot this word, so it becomes due now in every direction
+    /// (spec FR-D8). Existing states are treated as a lapse; missing directions get a due state.
+    /// Unlike a reset, the word does not go back into the new-card queue.</summary>
+    [HttpPost("{id:guid}/relearn")]
+    public async Task<IActionResult> Relearn(Guid id, CancellationToken ct)
     {
-        var settings = await settingsService.GetOrCreateAsync(currentUser.UserId, ct);
-        return db.Words.Where(w =>
-            w.UserId == currentUser.UserId && w.LanguageCode == settings.LearningLanguage);
+        var owned = await db.Words.AnyAsync(w => w.Id == id && w.UserId == currentUser.UserId, ct);
+        if (!owned) return NotFound();
+
+        var now = DateTime.UtcNow;
+        var states = await db.SrsStates.Where(s => s.WordId == id).ToListAsync(ct);
+        // A missing direction gets a state due now; created today, it counts toward the
+        // daily-new allowance (FR-R7).
+        foreach (var exercise in Enum.GetValues<ExerciseType>())
+        {
+            var state = states.FirstOrDefault(s => s.Exercise == exercise);
+            if (state is null)
+                db.SrsStates.Add(new SrsState { WordId = id, Exercise = exercise, Due = now, CreatedAt = now });
+            else
+                Sm2.Relearn(state, now);
+        }
+        await db.SaveChangesAsync(ct);
+        return NoContent();
     }
+
+    /// <summary>Words visible right now: the user's words in their current learning language.</summary>
+    private async Task<IQueryable<Word>> ScopedWordsAsync(CancellationToken ct) =>
+        ScopedWords(await settingsService.GetOrCreateAsync(currentUser.UserId, ct));
+
+    private IQueryable<Word> ScopedWords(UserSettings settings) =>
+        db.Words.Where(w =>
+            w.UserId == currentUser.UserId && w.LanguageCode == settings.LearningLanguage);
 
     private async Task<Word?> LoadOwnedWordAsync(Guid id, bool track, CancellationToken ct)
     {

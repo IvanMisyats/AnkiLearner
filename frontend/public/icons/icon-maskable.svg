@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <!-- Maskable variant of icon.svg for Android's launcher shapes: the background fills the
+       whole square and the cards stay inside the safe zone (a centred circle of radius 205). -->
+  <rect width="512" height="512" fill="#005cbb"/>
+  <rect x="142" y="124" width="200" height="260" rx="28" fill="#abc7ff" transform="rotate(-14 242 254)"/>
+  <rect x="192" y="144" width="200" height="260" rx="28" fill="#ffffff"/>
+  <path d="M242 344 L292 204 L342 344 M259 298 H325" fill="none" stroke="#005cbb"
+        stroke-width="34" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

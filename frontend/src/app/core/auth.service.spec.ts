@@ -1,7 +1,7 @@
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { Router, provideRouter } from '@angular/router';
 import { AuthService } from './auth.service';
 
 describe('AuthService', () => {
@@ -60,5 +60,80 @@ describe('AuthService', () => {
     expect(await first).toBe(true);
     expect(await second).toBe(true);
     expect(service.accessToken).toBe('token-2');
+  });
+});
+
+describe('AuthService — where signing out leads', () => {
+  let service: AuthService;
+  let http: HttpTestingController;
+  let router: Router;
+
+  /** Lets the router finish navigating. */
+  const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+  beforeEach(async () => {
+    TestBed.configureTestingModule({
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        // Routes without components: enough for the router to navigate between URLs.
+        provideRouter([
+          { path: 'login', children: [] },
+          { path: 'register', children: [] },
+          { path: 'words/:id/edit', children: [] },
+          { path: '', pathMatch: 'full', children: [] },
+        ]),
+      ],
+    });
+    service = TestBed.inject(AuthService);
+    http = TestBed.inject(HttpTestingController);
+    router = TestBed.inject(Router);
+    service.user.set({ id: 'u1', email: 'a@b.c' });
+    await router.navigateByUrl('/words/abc/edit');
+  });
+
+  afterEach(() => http.verify());
+
+  it('an expired session goes to login with the current page as returnUrl', async () => {
+    service.sessionExpired();
+    await settle();
+
+    expect(router.url).toBe('/login?returnUrl=%2Fwords%2Fabc%2Fedit');
+    expect(service.isAuthenticated()).toBe(false);
+  });
+
+  it('a second expiry on the login page keeps the first returnUrl', async () => {
+    service.sessionExpired();
+    await settle();
+    service.sessionExpired();
+    await settle();
+
+    expect(router.url).toBe('/login?returnUrl=%2Fwords%2Fabc%2Fedit');
+  });
+
+  it('an expiry on the register page stays there, with no returnUrl', async () => {
+    await router.navigateByUrl('/register');
+    service.sessionExpired();
+    await settle();
+
+    expect(router.url).toBe('/register');
+  });
+
+  it('an expired session on home adds no returnUrl', async () => {
+    await router.navigateByUrl('/');
+    service.sessionExpired();
+    await settle();
+
+    expect(router.url).toBe('/login');
+  });
+
+  it('a plain logout goes to login without a returnUrl', async () => {
+    const done = service.logout();
+    http.expectOne('/api/auth/logout').flush(null);
+    await done;
+    await settle();
+
+    expect(router.url).toBe('/login');
+    expect(service.isAuthenticated()).toBe(false);
   });
 });

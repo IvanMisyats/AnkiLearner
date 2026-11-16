@@ -10,13 +10,13 @@ import { ExerciseType, Language, StudyCountsDto, TagDto } from '../../core/api.t
 import { AuthService } from '../../core/auth.service';
 import { NotifyService } from '../../core/notify.service';
 
-/** Study dashboard: due/new/reviewed-today counters per direction + start buttons (spec FR-R1). */
+/** Study dashboard (/study): due/new/reviewed-today counters per direction + start buttons (spec FR-R1). */
 @Component({
   selector: 'app-dashboard',
   imports: [RouterLink, MatCardModule, MatButtonModule, MatIconModule, MatChipsModule],
   template: `
     <div class="page">
-      <h1>Study</h1>
+      <h1>Learn</h1>
 
       @if (tags().length > 0) {
         <mat-chip-listbox class="tag-filter" aria-label="Limit study to a tag">

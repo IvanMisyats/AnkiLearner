@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using AnkiLearner.Core.Entities;
 
 namespace AnkiLearner.Api.Contracts;
 
@@ -23,9 +24,9 @@ public record WordDto(
 
 public record SaveWordRequest(
     [Required] string Term,
-    [MaxLength(200)] string? Transcription,
-    [MaxLength(50)] string? PartOfSpeech,
-    [MaxLength(30)] string? Gender,
+    [MaxLength(Word.TranscriptionMaxLength)] string? Transcription,
+    [MaxLength(Word.PartOfSpeechMaxLength)] string? PartOfSpeech,
+    [MaxLength(Word.GenderMaxLength)] string? Gender,
     string? Example,
     string? Notes,
     List<TranslationDto>? Translations,

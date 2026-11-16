@@ -94,6 +94,44 @@ export interface WordLookupResult {
   exampleTranslations: Record<string, string>;
 }
 
+/**
+ * How the AI classified the translate input. The backend sends the C# enum's name
+ * as a string; in TypeScript a union of string literals plays the role of that enum.
+ */
+export type InputKind = 'Word' | 'Phrase' | 'Sentence';
+
+/**
+ * One suggested learning-language entry from POST /api/translate. All text is plain
+ * text from the AI — render it with {{ }} only, and escape it before saving.
+ */
+export interface TranslateCardDto {
+  /** Citation form, e.g. "en hund", "at spise". */
+  term: string;
+  transcription: string;
+  partOfSpeech: string;
+  gender: string;
+  /** Meanings per known-language code, e.g. { en: ['dog'], uk: ['собака'] }. */
+  meanings: Record<string, string[]>;
+  example: string;
+  /** The example translated into each known language, keyed by language code. */
+  exampleTranslations: Record<string, string>;
+  /** One sentence in the first known language, e.g. how it differs from a synonym. */
+  note: string;
+  /** Set when the user's dictionary already holds this entry (leading article ignored). */
+  existingWordId: string | null;
+}
+
+export interface TranslateResponse {
+  /** The detected language code, or the override when one was sent. */
+  sourceLanguage: string;
+  inputKind: InputKind;
+  /** The whole input in every language, keyed by code; the source slot holds the original. */
+  inputTranslations: Record<string, string>;
+  cards: TranslateCardDto[];
+  /** The whole multi-word input as one entry, when no card already is. */
+  wholeInput: TranslateCardDto | null;
+}
+
 export interface ImportPreviewResponse {
   importId: string;
   total: number;

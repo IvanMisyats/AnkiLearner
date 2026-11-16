@@ -1,18 +1,30 @@
-<mat-toolbar>
-  <a class="brand" routerLink="/">AnkiLearner</a>
+<!-- [class.signed-in] adds the CSS class while the expression is true. -->
+<mat-toolbar [class.signed-in]="auth.isAuthenticated()">
+  <!-- The brand goes home (the mode selector). On the narrowest phones only the icon shows. -->
+  <a class="brand" routerLink="/" aria-label="AnkiLearner home">
+    <mat-icon class="brand-icon">home</mat-icon>
+    <span class="brand-text">AnkiLearner</span>
+  </a>
   <span class="spacer"></span>
   @if (auth.isAuthenticated()) {
+    <!-- routerLinkActive adds the "active" class (and aria-current="page") while the current
+         URL is inside the link's path: Learn stays active during a review at /study/... .
+         On phones the labels are hidden, so aria-label keeps each link named. -->
     <nav>
-      <a mat-button routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">
-        <mat-icon>school</mat-icon><span class="nav-label">Study</span>
+      <a mat-button routerLink="/translate" routerLinkActive="active" ariaCurrentWhenActive="page"
+         aria-label="Translate">
+        <mat-icon>translate</mat-icon><span class="nav-label">Translate</span>
       </a>
-      <a mat-button routerLink="/words" routerLinkActive="active">
+      <a mat-button routerLink="/study" routerLinkActive="active" ariaCurrentWhenActive="page"
+         aria-label="Learn">
+        <mat-icon>school</mat-icon><span class="nav-label">Learn</span>
+      </a>
+      <a mat-button routerLink="/words" routerLinkActive="active" ariaCurrentWhenActive="page"
+         aria-label="Dictionary">
         <mat-icon>menu_book</mat-icon><span class="nav-label">Dictionary</span>
       </a>
-      <a mat-button routerLink="/import" routerLinkActive="active">
-        <mat-icon>upload_file</mat-icon><span class="nav-label">Import</span>
-      </a>
-      <a mat-button routerLink="/settings" routerLinkActive="active">
+      <a mat-button routerLink="/settings" routerLinkActive="active" ariaCurrentWhenActive="page"
+         aria-label="Settings">
         <mat-icon>settings</mat-icon><span class="nav-label">Settings</span>
       </a>
       <button mat-icon-button (click)="logout()" aria-label="Sign out" title="Sign out">

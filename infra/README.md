@@ -157,6 +157,83 @@ docker compose --env-file app.env up -d postgres db-setup
 docker compose --env-file app.env up -d
 ```
 
+## Smoke test
+
+After a deploy, from any machine (through Cloudflare):
+
+```bash
+site=https://anki.misyats.com
+show() { curl -sI "$site$1" | grep -iE '^(content-type|cache-control|cf-cache-status|age):'; }
+
+show /translate               # text/html, no-cache  (a deep link gets index.html)
+show /manifest.webmanifest    # application/manifest+json, no-cache
+show /icons/icon-192.png      # image/png, no-cache
+show /favicon.ico             # image/x-icon, no-cache
+show /$(curl -s "$site/" | grep -oE 'main-[A-Za-z0-9]+\.js' | head -1)
+                              # text/javascript, public, max-age=31536000, immutable
+```
+
+Only the `.js`/`.css` bundles may be `immutable` (Angular renames them on every change); every
+other file keeps its name across deploys, so it must stay `no-cache` or browsers and the
+Cloudflare edge keep serving the old one (`SpaStaticFiles.cs`). Bad results:
+
+- A hashed bundle answered with `text/html`: the `UseRouting` order in `Program.cs` broke.
+- An icon or the manifest answered with `text/html`: the file is missing from the image and the
+  SPA fallback answered instead.
+- A `no-cache` file with `cf-cache-status: HIT` and a large `age`: the edge serves a pinned old
+  copy. Purge it (below).
+
+## Android app (PWA)
+
+The site installs as an app from Chrome on Android: `frontend/public/manifest.webmanifest`
+(icons, Translate/Learn shortcuts, share target). There is no service worker. After a deploy
+that touches the manifest or icons, check on the phone:
+
+1. Chrome → open the site and sign in → ⋮ menu → **Install app** (older Chrome: **Add to home
+   screen**). Chrome offers this only over HTTPS.
+2. Optional, phone on USB with debugging on: desktop Chrome → `chrome://inspect` → inspect the
+   tab → **Application → Manifest** shows no errors and renders the icons.
+3. `chrome://webapks` on the phone lists AnkiLearner — it was installed as a real app (WebAPK),
+   not as a bookmark shortcut.
+4. Long-press the home-screen icon → **Translate** and **Learn** open `/translate` and `/study`.
+5. Select text in another app (e.g. an article in Chrome) → **Share** → **AnkiLearner** → the
+   Translate page opens and translates the selection. Only the *installed* app appears in the
+   share sheet; it can take a minute or two after installing.
+
+An installed app picks up manifest changes (name, icons, shortcuts) when Chrome next checks for
+updates — at most daily, when the app is opened.
+
+A share travels in the URL (GET), so one longer than about 8 KB once encoded (≈1,300 Cyrillic
+or ≈7,000 Latin characters) is rejected by nginx/Kestrel with 414. Accepted: the page translates
+at most 300 characters anyway, and such shares are rare.
+
+**One-time, after the first deploy with the PWA:** purge Cloudflare's cache — Purge Everything,
+or at least `/favicon.ico`, `/icons/*` and `/manifest.webmanifest`. Earlier builds served every
+file except index.html as `immutable` for a year, so the edge may still hold the old favicon,
+or the SPA's HTML fallback cached under an icon path requested before the icons existed.
+(`index.html` links the favicon as `favicon.ico?v=2`, so browsers fetch the new one anyway.)
+
+**CSP:** the live policy is only `frame-ancestors 'self'`, which doesn't restrict the manifest.
+If a fuller CSP is added later, it must allow `manifest-src 'self'`.
+
+### Icons
+
+`frontend/public/icons/*.svg` are the sources; the PNGs beside them and
+`frontend/public/favicon.ico` are rendered from them with a transparent background (they were
+made with headless Chrome; any SVG renderer works, e.g. `inkscape icon.svg -w 192 -h 192 -o
+icon-192.png`):
+
+| Source | Outputs |
+|---|---|
+| `icon.svg` | `icon-192.png`, `icon-512.png`, `favicon.ico` (16, 32 and 48 px in one file) |
+| `icon-maskable.svg` | `icon-maskable-512.png`, `apple-touch-icon.png` (180 px) |
+| `shortcut-translate.svg`, `shortcut-learn.svg` | `shortcut-translate-96.png`, `shortcut-learn-96.png` |
+
+Android crops the maskable icon to the launcher's shape (circle, squircle …), so its artwork
+must stay inside the central circle of radius 40 % (205 px of 512). To build the `.ico` from
+three PNG renders with Pillow:
+`Image.open("f48.png").save("favicon.ico", sizes=[(16, 16), (32, 32), (48, 48)], append_images=[Image.open("f16.png"), Image.open("f32.png")])`.
+
 ## Troubleshooting
 
 | Symptom | Likely cause |

@@ -18,12 +18,12 @@ public class StudyFlowTests(ApiFactory factory) : IClassFixture<ApiFactory>
         Assert.Equal(0, t2k.Due);
         Assert.Equal(2, t2k.New);
 
-        // First card served oldest-first; it is new.
+        // First card served newest-first; it is new.
         var next = await GetAsync<StudyNextResponse>(client, "/api/study/next?exercise=TargetToKnown");
         Assert.NotNull(next.Card);
         Assert.True(next.Card.IsNew);
-        Assert.Equal("hund", next.Card.Prompt);
-        Assert.Contains("dog", next.Card.Answer);
+        Assert.Equal("kat", next.Card.Prompt);
+        Assert.Contains("cat", next.Card.Answer);
         Assert.Equal(2, next.Remaining);
         Assert.Equal("10 min", next.Card.Intervals.Again);
         Assert.Equal("1 d", next.Card.Intervals.Good);
@@ -186,6 +186,91 @@ public class StudyFlowTests(ApiFactory factory) : IClassFixture<ApiFactory>
         // Only the progress is forgotten — the word itself is untouched.
         var fetched = await (await client.GetAsync($"/api/words/{word.Id}")).ReadAsAsync<WordDto>();
         Assert.Equal("sommerfugl", fetched.Term);
+    }
+
+    [Fact]
+    public async Task NewWords_AreServedNewestFirst()
+    {
+        var client = await factory.CreateAuthenticatedClientAsync();
+        foreach (var (term, en) in new[] { ("en", "one"), ("to", "two"), ("tre", "three") })
+            await CreateWordAsync(client, term, en);
+
+        var served = new List<string>();
+        var next = await GetAsync<StudyNextResponse>(client, "/api/study/next?exercise=TargetToKnown");
+        while (next.Card is { IsNew: true } card)
+        {
+            served.Add(card.Prompt);
+            next = await PostAsync<StudyNextResponse>(client, "/api/study/grade",
+                new { wordId = card.Word.Id, exercise = "TargetToKnown", grade = "Good" });
+        }
+        Assert.Equal(["tre", "to", "en"], served);
+    }
+
+    [Fact]
+    public async Task Relearn_MakesAStudiedWordDueNow_InBothDirections()
+    {
+        var client = await factory.CreateAuthenticatedClientAsync();
+        var word = await CreateWordAsync(client, "glemme", "to forget");
+        foreach (var exercise in new[] { "TargetToKnown", "KnownToTarget" })
+            await PostAsync<StudyNextResponse>(client, "/api/study/grade",
+                new { wordId = word.Id, exercise, grade = "Good" });
+
+        var before = await GetAsync<List<StudyCountsDto>>(client, "/api/study/counts");
+        Assert.All(before, c => Assert.Equal(0, c.Due));
+
+        var relearn = await client.PostAsync($"/api/words/{word.Id}/relearn", null);
+        Assert.Equal(HttpStatusCode.NoContent, relearn.StatusCode);
+
+        var after = await GetAsync<List<StudyCountsDto>>(client, "/api/study/counts");
+        Assert.All(after, c => Assert.Equal(1, c.Due));
+        Assert.All(after, c => Assert.Equal(0, c.New));
+
+        // A review card again, back on the 1-day rung of the ladder (not a 0-day interval).
+        var next = await GetAsync<StudyNextResponse>(client, "/api/study/next?exercise=TargetToKnown");
+        Assert.NotNull(next.Card);
+        Assert.Equal(word.Id, next.Card.Word.Id);
+        Assert.False(next.Card.IsNew);
+        Assert.Equal(new StudyIntervalsDto("10 min", "1 d", "1 d", "4 d"), next.Card.Intervals);
+
+        // Grading it Good schedules it for tomorrow again.
+        var graded = await PostAsync<StudyNextResponse>(client, "/api/study/grade",
+            new { wordId = word.Id, exercise = "TargetToKnown", grade = "Good" });
+        Assert.Null(graded.Card);
+    }
+
+    [Fact]
+    public async Task Relearn_OfANeverStudiedWord_UsesTodaysNewAllowance()
+    {
+        var client = await factory.CreateAuthenticatedClientAsync();
+        await UpdateSettingsAsync(client, dailyNewLimit: 1);
+        var relearned = await CreateWordAsync(client, "vente", "to wait");
+        await CreateWordAsync(client, "skynde", "to hurry"); // still new
+
+        var relearn = await client.PostAsync($"/api/words/{relearned.Id}/relearn", null);
+        Assert.Equal(HttpStatusCode.NoContent, relearn.StatusCode);
+
+        var counts = await GetAsync<List<StudyCountsDto>>(client, "/api/study/counts");
+        Assert.All(counts, c => Assert.Equal(1, c.Due));
+        Assert.All(counts, c => Assert.Equal(0, c.New));
+    }
+
+    [Fact]
+    public async Task Relearn_GivesANeverStudiedWordDueStates()
+    {
+        var client = await factory.CreateAuthenticatedClientAsync();
+        var word = await CreateWordAsync(client, "huske", "to remember");
+
+        var relearn = await client.PostAsync($"/api/words/{word.Id}/relearn", null);
+        Assert.Equal(HttpStatusCode.NoContent, relearn.StatusCode);
+
+        var counts = await GetAsync<List<StudyCountsDto>>(client, "/api/study/counts");
+        Assert.All(counts, c => Assert.Equal(1, c.Due));
+        Assert.All(counts, c => Assert.Equal(0, c.New));
+
+        var next = await GetAsync<StudyNextResponse>(client, "/api/study/next?exercise=KnownToTarget");
+        Assert.NotNull(next.Card);
+        Assert.Equal(word.Id, next.Card.Word.Id);
+        Assert.False(next.Card.IsNew);
     }
 
     // --- helpers ---

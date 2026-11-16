@@ -14,6 +14,7 @@ import { SaveWordRequest, WordLookupResult } from '../../core/api.types';
 import { AuthService } from '../../core/auth.service';
 import { ConfirmService } from '../../core/confirm.service';
 import { NotifyService } from '../../core/notify.service';
+import { escapeHtml, meaningsToHtml } from '../../core/word-html';
 
 /**
  * Add/edit form for a dictionary word. One translation block per known language.
@@ -137,13 +138,21 @@ import { NotifyService } from '../../core/notify.service';
           </button>
           <a mat-button routerLink="/words">Cancel</a>
           @if (wordId) {
-            <!-- type="button" matters: inside a <form> a bare <button> submits it. -->
-            <button
-              mat-button type="button" class="reset-button"
-              [disabled]="resetting()" (click)="resetProgress()">
-              <mat-icon>restart_alt</mat-icon>
-              Reset progress
-            </button>
+            <span class="progress-buttons">
+              <!-- type="button" matters: inside a <form> a bare <button> submits it. -->
+              <button
+                mat-button type="button"
+                [disabled]="relearning()" (click)="studyAgain()">
+                <mat-icon>replay</mat-icon>
+                Study again
+              </button>
+              <button
+                mat-button type="button" class="reset-button"
+                [disabled]="resetting()" (click)="resetProgress()">
+                <mat-icon>restart_alt</mat-icon>
+                Reset progress
+              </button>
+            </span>
           }
         </div>
       </form>
@@ -166,9 +175,10 @@ import { NotifyService } from '../../core/notify.service';
     .translation-card { margin-bottom: 12px; }
     .translation-lang { font-weight: 500; margin-bottom: 8px; }
     .full { width: 100%; }
-    .buttons { display: flex; gap: 12px; margin-top: 8px; align-items: center; }
-    /* Destructive and rare, so it sits apart from Save/Cancel. */
-    .reset-button { margin-left: auto; color: var(--mat-sys-error); }
+    .buttons { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 8px; align-items: center; }
+    /* Rare progress actions sit apart from Save/Cancel (on a phone they wrap to their own line). */
+    .progress-buttons { margin-left: auto; display: flex; flex-wrap: wrap; gap: 4px; }
+    .reset-button { color: var(--mat-sys-error); }
   `,
 })
 export class WordFormComponent implements OnInit {
@@ -186,6 +196,7 @@ export class WordFormComponent implements OnInit {
   readonly lookingUp = signal(false);
   readonly saving = signal(false);
   readonly resetting = signal(false);
+  readonly relearning = signal(false);
   readonly duplicateId = signal<string | null>(null);
   readonly tagNames = signal<string[]>([]);
   readonly allTags = signal<string[]>([]);
@@ -303,6 +314,25 @@ export class WordFormComponent implements OnInit {
     return `Translation — ${code.toUpperCase()}`;
   }
 
+  /**
+   * "Study again" (spec FR-D8): the word becomes due now in both directions. Not destructive,
+   * so no confirmation. Preferred over Reset for a forgotten word — new cards are served
+   * newest-first, so a reset old word would wait behind the whole new-card backlog.
+   */
+  async studyAgain(): Promise<void> {
+    const id = this.wordId; // captured for the same reason as in resetProgress()
+    if (!id || this.relearning()) return;
+    this.relearning.set(true);
+    try {
+      await firstValueFrom(this.wordsApi.relearn(id));
+      this.notify.success('It will come up in your next study session.');
+    } catch (error) {
+      this.notify.httpError(error);
+    } finally {
+      this.relearning.set(false);
+    }
+  }
+
   /** Forgets the word's SRS progress in both directions, after a confirmation (spec FR-D8). */
   async resetProgress(): Promise<void> {
     // Capture the id up front: the route subscription can swap wordId while the
@@ -366,23 +396,24 @@ export class WordFormComponent implements OnInit {
     }
   }
 
-  /** Fills the form from the AI result; multiple meanings become a numbered HTML list. */
+  /**
+   * Fills the form from the AI result. The AI returns plain text, so everything going into
+   * an HTML field is escaped; multiple meanings become a numbered HTML list. Transcription,
+   * part of speech and gender are plain-text fields and go in as they are.
+   */
   private applyLookup(result: WordLookupResult): void {
     this.form.patchValue({
-      term: result.term || this.form.controls.term.value,
+      term: result.term ? escapeHtml(result.term) : this.form.controls.term.value,
       transcription: result.transcription,
       partOfSpeech: result.partOfSpeech,
       gender: result.gender,
-      example: result.example,
+      example: escapeHtml(result.example ?? ''),
     });
     for (const group of this.translations.controls) {
       const code = group.controls.languageCode.value;
-      const meanings = result.meanings[code] ?? [];
       group.patchValue({
-        text: meanings.length <= 1
-          ? (meanings[0] ?? '')
-          : `<ol>${meanings.map((m) => `<li>${escapeHtml(m)}</li>`).join('')}</ol>`,
-        exampleTranslation: result.exampleTranslations[code] ?? '',
+        text: meaningsToHtml(result.meanings[code] ?? []),
+        exampleTranslation: escapeHtml(result.exampleTranslations[code] ?? ''),
       });
     }
     this.checkDuplicate();
@@ -403,11 +434,3 @@ type TranslationGroup = FormGroup<{
   text: FormControl<string>;
   exampleTranslation: FormControl<string>;
 }>;
-
-/** AI meanings are plain text — escape them before embedding in the HTML list. */
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
-}

@@ -34,7 +34,7 @@ import { NotifyService } from '../../core/notify.service';
             <mat-icon class="done-icon">celebration</mat-icon>
             <h2>All done for now!</h2>
             <p>No cards are waiting in this direction.</p>
-            <a mat-flat-button routerLink="/">Back to dashboard</a>
+            <a mat-flat-button routerLink="/study">Back to Learn</a>
           </mat-card-content>
         </mat-card>
       } @else {

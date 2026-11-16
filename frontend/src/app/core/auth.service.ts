@@ -3,6 +3,7 @@ import { Injectable, computed, inject, signal } from '@angular/core';
 import { Router } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { AuthResponse, MeResponse, SettingsDto, UserDto } from './api.types';
+import { isAuthPage } from './safe-return-url';
 
 /**
  * Holds the authentication state for the whole app.
@@ -52,6 +53,7 @@ export class AuthService {
     await this.loadMe();
   }
 
+  /** Signing out on purpose: back to the login page with no page to return to. */
   async logout(): Promise<void> {
     try {
       await firstValueFrom(this.http.post('/api/auth/logout', null));
@@ -83,10 +85,23 @@ export class AuthService {
     return this.refreshInFlight;
   }
 
-  /** Drops local auth state and returns to the login page. Used after failed refresh. */
+  /**
+   * Drops local auth state and returns to the login page. Used after a failed refresh.
+   * The current URL goes along as `?returnUrl=`, so signing in again keeps the current page
+   * (e.g. `/words/abc/edit`). The Translate page has already dropped `?q=` from its URL by
+   * then, but shows its last text again from TranslateStateService. The login page checks the
+   * value with safeReturnUrl before using it.
+   */
   sessionExpired(): void {
     this.clear();
-    this.router.navigate(['/login']);
+    const current = this.router.url;
+    // Already on the login or register page (e.g. another request failing a moment later):
+    // stay there, keeping whatever returnUrl it has.
+    if (isAuthPage(current)) return;
+    // Home needs no returnUrl (it is the default); a null query param is left out of the URL.
+    this.router.navigate(['/login'], {
+      queryParams: { returnUrl: current === '/' ? null : current },
+    });
   }
 
   refreshSettings(settings: SettingsDto): void {

@@ -1,13 +1,15 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, computed, inject, signal } from '@angular/core';
+import { toSignal } from '@angular/core/rxjs-interop';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../core/auth.service';
 import { NotifyService } from '../../core/notify.service';
+import { safeReturnUrl } from '../../core/safe-return-url';
 
 @Component({
   selector: 'app-register',
@@ -44,7 +46,8 @@ import { NotifyService } from '../../core/notify.service';
           </form>
         </mat-card-content>
         <mat-card-footer>
-          <span>Already registered? <a routerLink="/login">Sign in</a></span>
+          <!-- [queryParams] passes returnUrl on to the other page; a null value is left out. -->
+          <span>Already registered? <a routerLink="/login" [queryParams]="{ returnUrl: returnUrl() }">Sign in</a></span>
         </mat-card-footer>
       </mat-card>
     </div>
@@ -54,6 +57,7 @@ import { NotifyService } from '../../core/notify.service';
 export class RegisterComponent {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
   private readonly notify = inject(NotifyService);
   private readonly formBuilder = inject(FormBuilder);
 
@@ -64,13 +68,25 @@ export class RegisterComponent {
     password: ['', [Validators.required, Validators.minLength(8)]],
   });
 
+  /**
+   * The page to go to after registering (`?returnUrl=`, passed on from the login page), or
+   * null for home. Only a safe in-app path is used — see safeReturnUrl.
+   * toSignal turns the router's stream of query parameters into a signal, so the value
+   * stays current even when only the query string changes on this same page.
+   */
+  private readonly queryParams = toSignal(this.route.queryParamMap, { requireSync: true });
+  readonly returnUrl = computed(() => safeReturnUrl(this.queryParams().get('returnUrl')));
+
   async submit(): Promise<void> {
     if (this.form.invalid) return;
     this.pending.set(true);
     try {
       const { email, password } = this.form.getRawValue();
       await this.auth.register(email, password);
-      this.router.navigate(['/']);
+      // navigateByUrl takes a whole URL string, query included ("/translate?q=hund").
+      // replaceUrl swaps this page's history entry for the next one, so the phone's Back
+      // button doesn't return to the form after signing in.
+      this.router.navigateByUrl(this.returnUrl() ?? '/', { replaceUrl: true });
     } catch (error) {
       this.notify.httpError(error, 'Registration failed.');
     } finally {

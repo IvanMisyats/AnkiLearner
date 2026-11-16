@@ -5,7 +5,16 @@
     <title>AnkiLearner</title>
     <base href="/" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <link rel="icon" type="image/x-icon" href="favicon.ico" />
+    <!-- ?v=2: a new URL, because browsers and Cloudflare may still hold the old (Angular) favicon,
+         once served as immutable for a year. Bump it whenever favicon.ico changes. -->
+    <link rel="icon" type="image/x-icon" href="favicon.ico?v=2" />
+    <!-- Installable app (PWA): name, icons, home-screen shortcuts and the Android share target
+         live in the manifest. No service worker: Chrome no longer requires one to install. -->
+    <link rel="manifest" href="manifest.webmanifest" />
+    <!-- The phone's status bar colour; the same as the toolbar and the manifest's theme_color. -->
+    <meta name="theme-color" content="#faf9fd" />
+    <!-- iOS ignores the manifest's icons for "Add to Home Screen". -->
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link

@@ -155,4 +155,46 @@ public class Sm2Tests
         Sm2.Apply(tiny, ReviewGrade.Good, Now);
         Assert.Equal(1, tiny.IntervalDays); // Math.Max(1, …) guard
     }
+
+    [Fact]
+    public void Relearn_IsALapse_ThatKeepsEase_AndIsDueNow()
+    {
+        var reviewed = Now.AddDays(-20);
+        var s = new SrsState
+        {
+            IntervalDays = 30, EaseFactor = 2.7, Repetitions = 4, Lapses = 1,
+            Due = Now.AddDays(10), LastReviewed = reviewed,
+        };
+
+        Sm2.Relearn(s, Now);
+
+        Assert.Equal(0, s.Repetitions);
+        Assert.Equal(0, s.IntervalDays);
+        Assert.Equal(2, s.Lapses);
+        Assert.Equal(2.7, s.EaseFactor);
+        Assert.Equal(Now, s.Due); // future Due pulled in to now
+        Assert.Equal(reviewed, s.LastReviewed);
+    }
+
+    [Fact]
+    public void Relearn_KeepsAnOverdueDue_SoTheCardKeepsItsPlace()
+    {
+        var overdue = Now.AddDays(-7);
+        var s = new SrsState { IntervalDays = 30, Repetitions = 4, Due = overdue };
+
+        Sm2.Relearn(s, Now);
+
+        Assert.Equal(overdue, s.Due);
+    }
+
+    [Fact]
+    public void Relearn_ThenPassingGrades_RestartTheLadder()
+    {
+        var relearned = new SrsState { IntervalDays = 30, EaseFactor = 2.5, Repetitions = 4, Due = Now };
+        Sm2.Relearn(relearned, Now);
+
+        Assert.Equal(1, Sm2.PreviewDays(relearned, ReviewGrade.Hard));
+        Assert.Equal(1, Sm2.PreviewDays(relearned, ReviewGrade.Good));
+        Assert.Equal(Sm2.EasyFirstIntervalDays, Sm2.PreviewDays(relearned, ReviewGrade.Easy));
+    }
 }

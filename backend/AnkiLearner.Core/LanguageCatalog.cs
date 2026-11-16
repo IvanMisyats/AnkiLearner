@@ -46,4 +46,8 @@ public static class LanguageCatalog
     ];
 
     public static bool IsValid(string code) => All.Any(l => l.Code == code);
+
+    /// <summary>English name for a code ("da" → "Danish"); the code itself when unknown.</summary>
+    public static string DisplayName(string code) =>
+        All.FirstOrDefault(l => l.Code == code)?.Name ?? code;
 }

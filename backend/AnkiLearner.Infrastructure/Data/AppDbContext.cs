@@ -51,9 +51,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
         builder.Entity<Word>(e =>
         {
             e.Property(w => w.LanguageCode).HasMaxLength(20);
-            e.Property(w => w.Transcription).HasMaxLength(200);
-            e.Property(w => w.PartOfSpeech).HasMaxLength(50);
-            e.Property(w => w.Gender).HasMaxLength(30);
+            e.Property(w => w.Transcription).HasMaxLength(Word.TranscriptionMaxLength);
+            e.Property(w => w.PartOfSpeech).HasMaxLength(Word.PartOfSpeechMaxLength);
+            e.Property(w => w.Gender).HasMaxLength(Word.GenderMaxLength);
             // Dictionary and study views always filter by user + current learning language.
             e.HasIndex(w => new { w.UserId, w.LanguageCode });
             e.HasIndex(w => new { w.UserId, w.LanguageCode, w.TermNormalized });

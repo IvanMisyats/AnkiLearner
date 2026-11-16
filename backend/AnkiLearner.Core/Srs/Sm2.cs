@@ -91,6 +91,17 @@ public static class Sm2
         s.LastReviewed = now;
     }
 
+    /// <summary>"Study again" (spec FR-D8): a lapse like "Again", but without the ease penalty and
+    /// due now — an already overdue card keeps its earlier Due so it doesn't lose its place.
+    /// The next passing grade restarts the 1 d / 6 d ladder.</summary>
+    public static void Relearn(SrsState s, DateTime now)
+    {
+        s.Repetitions = 0;
+        s.IntervalDays = 0;
+        s.Lapses += 1;
+        if (s.Due > now) s.Due = now;
+    }
+
     /// <summary>Interval (days) this grade would produce — for button hints. Does not mutate.</summary>
     public static int PreviewDays(
         SrsState s, ReviewGrade grade, int maxIntervalDays = DefaultMaxIntervalDays)

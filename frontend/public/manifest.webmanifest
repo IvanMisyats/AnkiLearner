@@ -1,0 +1,39 @@
+{
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "name": "AnkiLearner",
+  "short_name": "AnkiLearner",
+  "description": "Translate words and sentences, add them to your dictionary and learn them with spaced repetition.",
+  "lang": "en",
+  "theme_color": "#faf9fd",
+  "background_color": "#faf9fd",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    {
+      "name": "Translate",
+      "short_name": "Translate",
+      "description": "Translate a word, phrase or sentence",
+      "url": "/translate",
+      "icons": [{ "src": "icons/shortcut-translate-96.png", "sizes": "96x96", "type": "image/png" }]
+    },
+    {
+      "name": "Learn",
+      "short_name": "Learn",
+      "description": "Review the words that are due",
+      "url": "/study",
+      "icons": [{ "src": "icons/shortcut-learn-96.png", "sizes": "96x96", "type": "image/png" }]
+    }
+  ],
+  "share_target": {
+    "action": "/translate",
+    "method": "GET",
+    "enctype": "application/x-www-form-urlencoded",
+    "params": { "title": "title", "text": "q", "url": "url" }
+  }
+}

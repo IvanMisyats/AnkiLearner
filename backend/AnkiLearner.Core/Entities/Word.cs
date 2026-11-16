@@ -6,6 +6,11 @@ namespace AnkiLearner.Core.Entities;
 /// </summary>
 public class Word
 {
+    // Column limits, shared by the EF model, the API's [MaxLength] checks and TranslateShaper.
+    public const int TranscriptionMaxLength = 200;
+    public const int PartOfSpeechMaxLength = 50;
+    public const int GenderMaxLength = 30;
+
     public Guid Id { get; set; }
     public Guid UserId { get; set; }
 

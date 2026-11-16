@@ -1,5 +1,6 @@
 using System.Text;
 using System.Threading.RateLimiting;
+using AnkiLearner.Api;
 using AnkiLearner.Api.Auth;
 using AnkiLearner.Core.Abstractions;
 using AnkiLearner.Infrastructure.Data;
@@ -148,20 +149,11 @@ if (app.Environment.IsDevelopment())
 
 // --- Angular SPA, served from wwwroot (single origin: no CORS needed) ---
 // In development the SPA is served by `ng serve` and wwwroot is empty; these are then no-ops.
+// Hashed .js/.css are cached for a year; everything else (index.html, the PWA manifest, icons)
+// is revalidated on every use. The same options serve the deep-link fallback at the end.
+var spaFiles = SpaStaticFiles.Options();
 app.UseDefaultFiles();
-app.UseStaticFiles(new StaticFileOptions
-{
-    OnPrepareResponse = ctx =>
-    {
-        // Angular builds with outputHashing: all, so asset filenames change on every build and
-        // may be cached indefinitely. index.html must NOT be, or clients pin an old bundle.
-        var headers = ctx.Context.Response.Headers;
-        headers.CacheControl =
-            ctx.File.Name.Equals("index.html", StringComparison.OrdinalIgnoreCase)
-                ? "no-cache, no-store, must-revalidate"
-                : "public, max-age=31536000, immutable";
-    },
-});
+app.UseStaticFiles(spaFiles);
 
 // Explicit, and deliberately AFTER the static file middleware.
 //
@@ -183,8 +175,9 @@ app.MapControllers();
 app.MapHealthChecks("/api/health");
 
 // Client-side routing: hand any non-API path to the SPA. The regex keeps unmatched /api/*
-// requests returning a real 404 instead of an HTML page.
-app.MapFallbackToFile("{*path:regex(^(?!api/).*$)}", "index.html");
+// requests returning a real 404 instead of an HTML page. `spaFiles` gives the deep-link
+// index.html the same no-cache header as `/`.
+app.MapFallbackToFile("{*path:regex(^(?!api/).*$)}", "index.html", spaFiles);
 
 app.Run();
 

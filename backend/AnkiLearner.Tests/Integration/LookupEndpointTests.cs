@@ -13,9 +13,43 @@ public class FakeLookupProvider(bool available, bool throws = false) : IWordLook
     public string Name => "Fake";
     public bool IsAvailable => available;
 
+    /// <summary>Builds the raw translate result from (text, sourceLanguage). Defaults to one
+    /// Danish card whose term is the text.</summary>
+    public Func<string, string?, TranslateResult> OnTranslate { get; set; } = (text, source) =>
+        new TranslateResult(
+            source ?? "da",
+            InputKind.Word,
+            new Dictionary<string, string> { ["en"] = $"translation-of-{text}" },
+            [
+                new TranslateCard(
+                    text, "[ˈtɛst]", "noun", "en",
+                    new Dictionary<string, List<string>> { ["en"] = ["meaning-en"] },
+                    $"Example with {text}.",
+                    new Dictionary<string, string> { ["en"] = "translation-en" },
+                    "A note."),
+            ]);
+
+    /// <summary>The arguments of the last TranslateAsync call.</summary>
+    public string? LastTranslateText { get; private set; }
+    public string? LastTranslateSource { get; private set; }
+
+    public Task<TranslateResult> TranslateAsync(
+        string text, string? sourceLanguage, string targetLanguage, IReadOnlyList<string> knownLanguages,
+        CancellationToken ct)
+    {
+        LastTranslateText = text;
+        LastTranslateSource = sourceLanguage;
+        if (throws) throw new InvalidOperationException("Simulated provider failure.");
+        return Task.FromResult(OnTranslate(text, sourceLanguage));
+    }
+
+    /// <summary>When set, LookupAsync throws this instead of answering.</summary>
+    public Exception? LookupFailure { get; init; }
+
     public Task<WordLookupResult> LookupAsync(
         string term, string targetLanguage, IReadOnlyList<string> knownLanguages, CancellationToken ct)
     {
+        if (LookupFailure is not null) throw LookupFailure;
         if (throws) throw new InvalidOperationException("Simulated provider failure.");
         return Task.FromResult(new WordLookupResult(
             term,
@@ -83,6 +117,20 @@ public class LookupEndpointTests(ApiFactory factory) : IClassFixture<ApiFactory>
     public async Task Lookup_WhenProviderFails_Returns502()
     {
         var client = CreateClientWithProvider(new FakeLookupProvider(available: true, throws: true));
+        await AuthenticateAsync(client);
+
+        var response = await client.PostAsJsonAsync("/api/lookup", new { term = "hund" });
+        Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Lookup_WhenProviderCancelsItself_Returns502()
+    {
+        // Not the caller's cancellation, so it is a provider failure (FR-P4).
+        var client = CreateClientWithProvider(new FakeLookupProvider(available: true)
+        {
+            LookupFailure = new OperationCanceledException(),
+        });
         await AuthenticateAsync(client);
 
         var response = await client.PostAsJsonAsync("/api/lookup", new { term = "hund" });

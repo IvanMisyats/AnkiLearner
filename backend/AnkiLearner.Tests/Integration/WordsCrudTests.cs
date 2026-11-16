@@ -142,6 +142,78 @@ public class WordsCrudTests(ApiFactory factory) : IClassFixture<ApiFactory>
     }
 
     [Fact]
+    public async Task DuplicateCheck_IgnoresLeadingArticle_InBothDirections()
+    {
+        var client = await factory.CreateAuthenticatedClientAsync();
+        var noun = await CreateWordAsync(client, "en aftale", "an agreement");
+        var verb = await CreateWordAsync(client, "spise", "to eat");
+        await CreateWordAsync(client, "om", "about");
+
+        // Stored with the article, looked up without it…
+        var bare = await CheckDuplicateAsync(client, "aftale");
+        Assert.True(bare.Exists);
+        Assert.Equal(noun.Id, bare.WordId);
+
+        // …and stored bare, looked up with the particle.
+        var withParticle = await CheckDuplicateAsync(client, "at spise");
+        Assert.True(withParticle.Exists);
+        Assert.Equal(verb.Id, withParticle.WordId);
+
+        // A particle without a following space is part of the word: "atom" is not "at om".
+        Assert.False((await CheckDuplicateAsync(client, "atom")).Exists);
+
+        // excludeId still excludes the word being edited.
+        Assert.False((await CheckDuplicateAsync(client, "aftale", excludeId: noun.Id)).Exists);
+    }
+
+    [Fact]
+    public async Task DuplicateCheck_PrefersExactMatch_ThenOldest()
+    {
+        var client = await factory.CreateAuthenticatedClientAsync();
+        var noun = await CreateWordAsync(client, "en gift", "a poison");
+        var adjective = await CreateWordAsync(client, "gift", "married");
+
+        Assert.Equal(adjective.Id, (await CheckDuplicateAsync(client, "gift")).WordId);
+        Assert.Equal(noun.Id, (await CheckDuplicateAsync(client, "en gift")).WordId);
+        // No exact match → the oldest of the article variants.
+        Assert.Equal(noun.Id, (await CheckDuplicateAsync(client, "et gift")).WordId);
+    }
+
+    [Fact]
+    public async Task DuplicateCheck_NeverMatchesAnotherUsersWord()
+    {
+        var alice = await factory.CreateAuthenticatedClientAsync();
+        var bob = await factory.CreateAuthenticatedClientAsync();
+        await CreateWordAsync(alice, "en hund", "a dog");
+
+        Assert.False((await CheckDuplicateAsync(bob, "hund")).Exists);
+        Assert.False((await CheckDuplicateAsync(bob, "en hund")).Exists);
+    }
+
+    [Fact]
+    public async Task DuplicateCheck_LanguageWithoutParticleTable_MatchesExactly()
+    {
+        var client = await factory.CreateAuthenticatedClientAsync();
+        // Swedish also has an "en" article, but no particle table → exact matching only.
+        await UpdateSettingsAsync(client, "sv", ["en"]);
+        await CreateWordAsync(client, "en bil", "a car");
+
+        Assert.True((await CheckDuplicateAsync(client, "en bil")).Exists);
+        Assert.False((await CheckDuplicateAsync(client, "bil")).Exists);
+    }
+
+    [Fact]
+    public async Task DuplicateCheck_IsScopedToTheLearningLanguage()
+    {
+        var client = await factory.CreateAuthenticatedClientAsync();
+        await CreateWordAsync(client, "en aftale", "an agreement");
+
+        await UpdateSettingsAsync(client, "de", ["en"]);
+        Assert.False((await CheckDuplicateAsync(client, "en aftale")).Exists);
+        Assert.False((await CheckDuplicateAsync(client, "aftale")).Exists);
+    }
+
+    [Fact]
     public async Task Translation_InUnknownLanguage_IsRejected()
     {
         var client = await factory.CreateAuthenticatedClientAsync();
@@ -184,6 +256,28 @@ public class WordsCrudTests(ApiFactory factory) : IClassFixture<ApiFactory>
 
         var response = await bob.DeleteAsync($"/api/words/{word.Id}/progress");
         Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Relearn_OnAnotherUsersOrMissingWord_Returns404()
+    {
+        var alice = await factory.CreateAuthenticatedClientAsync();
+        var bob = await factory.CreateAuthenticatedClientAsync();
+        var word = await CreateWordAsync(alice, "fugl", "bird");
+
+        var foreign = await bob.PostAsync($"/api/words/{word.Id}/relearn", null);
+        Assert.Equal(HttpStatusCode.NotFound, foreign.StatusCode);
+
+        var missing = await alice.PostAsync($"/api/words/{Guid.NewGuid()}/relearn", null);
+        Assert.Equal(HttpStatusCode.NotFound, missing.StatusCode);
+    }
+
+    private static async Task<DuplicateCheckResponse> CheckDuplicateAsync(
+        HttpClient client, string term, Guid? excludeId = null)
+    {
+        var url = $"/api/words/duplicate?term={Uri.EscapeDataString(term)}";
+        if (excludeId is not null) url += $"&excludeId={excludeId}";
+        return await (await client.GetAsync(url)).ReadAsAsync<DuplicateCheckResponse>();
     }
 
     private static async Task<WordDto> CreateWordAsync(

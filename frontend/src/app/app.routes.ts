@@ -15,9 +15,20 @@ export const routes: Routes = [
     canActivate: [authGuard],
     children: [
       {
+        // Home: the mode selector (Translate or Learn).
         path: '',
+        loadComponent: () => import('./features/home/home.component').then((m) => m.HomeComponent),
+      },
+      {
+        // The study dashboard: counts per direction + Start buttons.
+        path: 'study',
         loadComponent: () =>
           import('./features/dashboard/dashboard.component').then((m) => m.DashboardComponent),
+      },
+      {
+        path: 'translate',
+        loadComponent: () =>
+          import('./features/translate/translate.component').then((m) => m.TranslateComponent),
       },
       {
         path: 'study/:exercise',

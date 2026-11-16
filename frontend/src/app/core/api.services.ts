@@ -15,6 +15,7 @@ import {
   StudyCountsDto,
   StudyNextResponse,
   TagDto,
+  TranslateResponse,
   WordDto,
   WordLookupResult,
 } from './api.types';
@@ -54,6 +55,11 @@ export class WordsApi {
   /** Forgets the word's SRS progress in both directions; keeps the word itself. */
   resetProgress(id: string): Observable<void> {
     return this.http.delete<void>(`/api/words/${id}/progress`);
+  }
+
+  /** "Study again": makes the word due now in both directions; keeps its history. */
+  relearn(id: string): Observable<void> {
+    return this.http.post<void>(`/api/words/${id}/relearn`, null);
   }
 
   checkDuplicate(term: string, excludeId?: string): Observable<DuplicateCheckResponse> {
@@ -111,6 +117,16 @@ export class LookupApi {
 
   lookup(term: string): Observable<WordLookupResult> {
     return this.http.post<WordLookupResult>('/api/lookup', { term });
+  }
+}
+
+@Injectable({ providedIn: 'root' })
+export class TranslateApi {
+  private readonly http = inject(HttpClient);
+
+  /** One paid AI call. `sourceLanguage` null = let the server detect the language. */
+  translate(text: string, sourceLanguage: string | null): Observable<TranslateResponse> {
+    return this.http.post<TranslateResponse>('/api/translate', { text, sourceLanguage });
   }
 }
 

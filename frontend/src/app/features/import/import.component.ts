@@ -98,7 +98,7 @@ import { NotifyService } from '../../core/notify.service';
             </p>
             <div class="result-actions">
               <a mat-flat-button routerLink="/words">Open dictionary</a>
-              <a mat-button routerLink="/">Start studying</a>
+              <a mat-button routerLink="/study">Start studying</a>
               <button mat-button (click)="reset()">Import another file</button>
             </div>
           </mat-card-content>

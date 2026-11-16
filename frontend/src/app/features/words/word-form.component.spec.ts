@@ -37,7 +37,7 @@ const word = {
   tags: [],
 };
 
-describe('WordFormComponent — reset progress', () => {
+describe('WordFormComponent — progress actions and lookup', () => {
   let http: HttpTestingController;
   let confirm: ConfirmStub;
 
@@ -79,7 +79,7 @@ describe('WordFormComponent — reset progress', () => {
     if (editedId) http.expectOne(`/api/words/${editedId}`).flush(word);
     await harness.fixture.whenStable();
     harness.detectChanges();
-    return { component, text: () => harness.routeNativeElement!.textContent as string };
+    return { component, harness, text: () => harness.routeNativeElement!.textContent as string };
   }
 
   it('offers no reset button when adding a word', async () => {
@@ -109,5 +109,56 @@ describe('WordFormComponent — reset progress', () => {
 
     http.expectNone({ url: '/api/words/w1/progress', method: 'DELETE' });
     expect(confirm.asked.length).toBe(1);
+  });
+
+  it('Study again relearns the word without asking, disabled while it runs', async () => {
+    const { harness } = await render('/words/w1/edit', 'w1');
+    const studyAgainButton = () =>
+      Array.from(harness.routeNativeElement!.querySelectorAll('button')).find((b) =>
+        b.textContent!.includes('Study again'),
+      )!;
+
+    studyAgainButton().click();
+    harness.detectChanges();
+    const request = http.expectOne({ url: '/api/words/w1/relearn', method: 'POST' });
+    expect(studyAgainButton().disabled).toBe(true);
+
+    request.flush(null);
+    await settle();
+    harness.detectChanges();
+
+    expect(studyAgainButton().disabled).toBe(false);
+    expect(confirm.asked.length).toBe(0); // not destructive, so no confirmation
+  });
+
+  it('offers no Study again button when adding a word', async () => {
+    const { text } = await render('/words/new');
+    expect(text()).not.toContain('Study again');
+  });
+
+  it('escapes the AI lookup result before putting it into the HTML fields', async () => {
+    const { component } = await render('/words/new');
+    component.form.controls.term.setValue('mindre');
+
+    const done = component.lookup();
+    http.expectOne({ url: '/api/lookup', method: 'POST' }).flush({
+      term: 'mindre <end>',
+      transcription: '[ˈmendʁɐ]',
+      partOfSpeech: 'adjective',
+      gender: '',
+      meanings: { en: ['less <than>'] },
+      example: 'a <b> c',
+      exampleTranslations: { en: 'x & y' },
+    });
+    await done;
+    // The filled-in term triggers the duplicate check.
+    http.expectOne((r) => r.url === '/api/words/duplicate').flush({ exists: false, wordId: null });
+
+    const value = component.form.getRawValue();
+    expect(value.term).toBe('mindre &lt;end&gt;');
+    expect(value.example).toBe('a &lt;b&gt; c');
+    expect(value.translations[0].text).toBe('less &lt;than&gt;'); // a single meaning: no list
+    expect(value.translations[0].exampleTranslation).toBe('x &amp; y');
+    expect(value.transcription).toBe('[ˈmendʁɐ]'); // plain-text field, as is
   });
 });

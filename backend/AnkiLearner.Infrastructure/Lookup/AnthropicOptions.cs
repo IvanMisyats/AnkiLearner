@@ -7,5 +7,9 @@ public class AnthropicOptions
 
     public string Model { get; set; } = "claude-haiku-4-5";
 
-    public int MaxTokens { get; set; } = 1024;
+    /// <summary>Output cap per call. Only a ceiling: a 5-card translation stays well below it.</summary>
+    public int MaxTokens { get; set; } = 4096;
+
+    /// <summary>Total wall-clock limit per AI call, the SDK's retries included.</summary>
+    public int TimeoutSeconds { get; set; } = 30;
 }

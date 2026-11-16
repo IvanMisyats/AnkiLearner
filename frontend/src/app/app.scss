@@ -5,9 +5,22 @@
 }
 
 .brand {
+  display: inline-flex;
+  align-items: center;
+  min-height: 48px; // a comfortable tap target
+  min-width: 0; // may shrink (the text then ends in "…") rather than push the nav off-screen
   text-decoration: none;
   color: inherit;
   font-weight: 500;
+}
+
+.brand-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.brand-icon {
+  display: none; // shown only on the narrowest phones, see the end of this file
 }
 
 .spacer {
@@ -21,7 +34,9 @@ main {
 
 nav {
   display: flex;
+  flex: none;
   align-items: center;
+  gap: 4px; // tap targets never touch
 
   a {
     display: inline-flex;
@@ -29,9 +44,63 @@ nav {
     gap: 4px;
   }
 
-  // Phone-first: keep only the icons on narrow screens.
+  // The current section, in Material 3's "active indicator" colours (a tinted pill), so the
+  // page is recognisable even when the links are icons only. `color` is set directly because
+  // the toolbar overrides Material's button colour variable with a more specific rule.
+  a.active {
+    background-color: var(--mat-sys-secondary-container);
+    color: var(--mat-sys-on-secondary-container);
+  }
+
+  // Phone-first: icons only. Material buttons are at least 64px wide, which pushed the last
+  // items off a 360px screen; Material sizes its buttons through these CSS variables.
+  // Each link becomes 44px wide (10 + 24px icon + 10); Material's invisible touch target
+  // already makes it 48px tall.
   @media (max-width: 700px) {
+    a {
+      min-width: 44px;
+      gap: 0;
+      --mat-button-text-with-icon-horizontal-padding: 10px;
+      --mat-button-text-icon-spacing: 0px;
+      --mat-button-text-icon-offset: 0px;
+    }
+
     a .nav-label {
+      display: none;
+    }
+
+    // Sign out: a 44px circle instead of 40px, to match the links.
+    button {
+      --mat-icon-button-state-layer-size: 44px;
+    }
+  }
+}
+
+// Phones: slimmer side padding and brand, so the brand and five 44px items fit at 360px.
+@media (max-width: 400px) {
+  mat-toolbar {
+    padding: 0 8px;
+  }
+
+  .brand {
+    font-size: 18px;
+  }
+}
+
+// The narrowest phones (just under 360px, e.g. 320px): the brand shrinks to its home icon so
+// the nav keeps full-size tap targets. Only when signed in: the login screen has no nav.
+@media (max-width: 359.98px) {
+  .signed-in {
+    .brand {
+      min-width: 44px;
+      justify-content: center;
+    }
+
+    .brand-icon {
+      display: inline-block;
+    }
+
+    .brand-text {
       display: none;
     }
   }
