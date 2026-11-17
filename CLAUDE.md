@@ -173,6 +173,12 @@ dotnet run --project AnkiLearner.Api          # EF migrations applied on startup
 npm install && npm start                      # ng serve, proxies /api to the backend
 ```
 
+**Working in a git worktree:** start the dev DB from the **main checkout**, not from the worktree.
+Compose takes the project name from the folder, but `container_name: ankilearner-db-dev` is fixed.
+Started from the worktree, compose would try to make a second container with the same name and
+an empty volume. The worktree's API uses the main checkout's DB on `localhost:5433`, which is safe
+unless the branch changes the schema.
+
 ### Tests
 
 ```bash
