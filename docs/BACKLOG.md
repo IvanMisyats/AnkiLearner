@@ -23,7 +23,7 @@
 
 ### Two simultaneous first reviews of a direction return 500
 - **Found:** 2026-11-15, Translate mode Phase 1a review.
-- **Symptom:** a relearn racing another relearn or a first grade on a never-studied direction can return a 500. So can two grades of one new card, or a relearn racing a reset. The unique index on `(WordId, Exercise)` rejects the second insert. The final state is correct. The UI disables its buttons while a request runs, so this needs two tabs or devices.
+- **Symptom:** a relearn racing another relearn or a first grade on a never-studied direction can return a 500. So can two grades of one new card, or a relearn racing a reset. The unique index on `(WordId, Exercise)` rejects the second insert. The final state is correct. The UI disables its buttons while a request runs, so this needs two tabs or devices. Related: two simultaneous grades of an *existing* state don't fail but lose an update (last writer wins, no concurrency token on `SrsState`), and both review-log rows (ADR-0012) carry the same before-state.
 - **Fix idea:** catch the unique-violation `DbUpdateException` in `StudyController.Grade` / `WordsController.Relearn` and retry once (reload the state and apply), or return 409.
 
 ### Word-form Notes field shows raw HTML

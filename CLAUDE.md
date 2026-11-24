@@ -101,6 +101,8 @@ AnkiLearner/                  # repo root
 - **Tag** (per user) ── M:N ── **Word** (via `WordTag`).
 - **SrsState**: SM-2 state per `(WordId, Exercise)`; exercises `TargetToKnown`, `KnownToTarget`
   (typing/anagram later). Studied directions share the word but track progress independently.
+- **ReviewLogEntry** (table `ReviewLog`): append-only history, one row per grade / relearn / reset
+  per direction, with the state before and after. `SrsState` is only the latest snapshot.
 
 ## Conventions
 
@@ -159,6 +161,9 @@ installable Android PWA with a share target. Design record and deviations: **`do
 production settings file — and `anki-deploy` applies `app.env` edits on its own (compose
 config-hash drift check, ADR-0011), so a new model needs no code change. See Operations in
 `infra/README.md`.
+
+**Review log** (2026-11-24): every grade, Study again and reset appends a row to `ReviewLog`
+(FR-R11, ADR-0012): the history the planned FSRS scheduler will be fitted to and replayed over.
 
 ## How to run
 

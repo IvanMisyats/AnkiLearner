@@ -189,8 +189,9 @@ The add-word form is always usable manually; AI lookup pre-fills it.
 
 - **FR-R1** The study screen (`/study`) shows, per direction, counts of **due** and **new** cards plus
   the number of words **reviewed today** (optionally filtered by tag), like the POC's exercise
-  picker. "Today" is the **UTC day**, the same boundary FR-R7 uses. Only the latest review is
-  stored per card, so repeat presses on one word count once and FR-D8 removes it from the total.
+  picker. "Today" is the **UTC day**, the same boundary FR-R7 uses. The counter reads each card's
+  latest review (`SrsState.LastReviewed`), not the review log (FR-R11), so repeat presses on one
+  word count once and FR-D8 removes it from the total.
 - **FR-R2** The user picks a **direction**:
   - `TargetToKnown` — prompt = target term; answer reveals all known-language translations.
   - `KnownToTarget` — prompt = primary known-language translation(s); answer reveals the target
@@ -211,6 +212,12 @@ The add-word form is always usable manually; AI lookup pre-fills it.
   can be finished (Anki-style). Study counts include such cards.
 - **FR-R10** Study queries are scoped to the current learning language (FR-S7); the direction
   labels in the UI use the user's actual language names (e.g. "Danish → English/Ukrainian").
+- **FR-R11** **Review log:** every grade press (in-session repeats included), every Relearn and
+  every Reset (FR-D8) appends one row per direction to `ReviewLog`, in the same transaction as the
+  state change: kind, grade, time, the card's previous review time, and interval / ease / due
+  before and after. Rows are never updated. A reset keeps the history; deleting the word deletes
+  it. Not exposed in the API or UI yet; it exists so the scheduler can be fitted to and replayed
+  over the user's real history (ADR-0012).
 
 ### 3.7 AI provider abstraction
 
@@ -365,6 +372,21 @@ FK (directly or transitively) and are filtered by it. Timestamps in UTC.
 | Lapses | int | times forgotten |
 | LastReviewed | timestamptz? | |
 | **unique** (WordId, Exercise) | | |
+
+**ReviewLogEntry** (table `ReviewLog`; append-only history, FR-R11)
+| field | type | notes |
+|---|---|---|
+| Id | bigint PK (identity) | insertion order breaks timestamp ties |
+| WordId | GUID FK | cascade delete |
+| Exercise | text | as in SrsState |
+| Kind | text | `Review`, `Relearn`, `Reset` |
+| Source | text | `Site`, `Anki` (imported revlog) |
+| Grade | text? | `Again`/`Hard`/`Good`/`Easy`; null for Relearn/Reset |
+| ReviewedAt | timestamptz | event time |
+| PreviousReviewAt | timestamptz? | the card's `LastReviewed` before the event |
+| IntervalBefore / EaseBefore / DueBefore | int? / double? / timestamptz? | null if no state existed |
+| IntervalAfter / EaseAfter / DueAfter | int? / double? / timestamptz? | null after a reset |
+| index (WordId, Exercise, ReviewedAt) | | |
 
 ### 4.2 Notes on the model
 

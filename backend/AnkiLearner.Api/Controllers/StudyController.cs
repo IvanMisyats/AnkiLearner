@@ -64,6 +64,7 @@ public class StudyController(
 
         var state = await db.SrsStates.FirstOrDefaultAsync(
             s => s.WordId == word.Id && s.Exercise == request.Exercise, ct);
+        var before = state is null ? null : SrsSnapshot.Of(state);
         if (state is null)
         {
             state = new SrsState { WordId = word.Id, Exercise = request.Exercise, CreatedAt = now };
@@ -71,7 +72,9 @@ public class StudyController(
         }
 
         Sm2.Apply(state, request.Grade, now, settings.MaxIntervalDays);
-        await db.SaveChangesAsync(ct);
+        db.ReviewLog.Add(ReviewLogEntry.Create(
+            word.Id, request.Exercise, ReviewKind.Review, request.Grade, now, before, state));
+        await db.SaveChangesAsync(ct); // state + log row in one transaction
 
         var nextScope = await ScopeAsync(tag, ct);
         return await BuildNextAsync(nextScope, request.Exercise, ct);

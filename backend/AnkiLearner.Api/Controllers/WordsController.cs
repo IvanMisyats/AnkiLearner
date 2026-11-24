@@ -153,14 +153,25 @@ public class WordsController(
     }
 
     /// <summary>Forgets this word's SRS progress in every direction, so it is offered as new
-    /// again. The word itself, its translations and its tags are untouched (spec FR-D8).</summary>
+    /// again. The word itself, its translations and its tags are untouched (spec FR-D8).
+    /// Each deleted state leaves a Reset row in the review log, which keeps the history (FR-R11).</summary>
     [HttpDelete("{id:guid}/progress")]
     public async Task<IActionResult> ResetProgress(Guid id, CancellationToken ct)
     {
         var owned = await db.Words.AnyAsync(w => w.Id == id && w.UserId == currentUser.UserId, ct);
         if (!owned) return NotFound();
 
+        var now = DateTime.UtcNow;
+        // Log rows and the delete commit together. ExecuteDelete removes whatever exists when it
+        // runs, so a concurrent reset deletes nothing instead of failing.
+        await using var tx = await db.Database.BeginTransactionAsync(ct);
+        var states = await db.SrsStates.AsNoTracking().Where(s => s.WordId == id).ToListAsync(ct);
+        foreach (var state in states)
+            db.ReviewLog.Add(ReviewLogEntry.Create(
+                id, state.Exercise, ReviewKind.Reset, grade: null, now, SrsSnapshot.Of(state), after: null));
+        await db.SaveChangesAsync(ct);
         await db.SrsStates.Where(s => s.WordId == id).ExecuteDeleteAsync(ct);
+        await tx.CommitAsync(ct);
         return NoContent();
     }
 
@@ -180,10 +191,19 @@ public class WordsController(
         foreach (var exercise in Enum.GetValues<ExerciseType>())
         {
             var state = states.FirstOrDefault(s => s.Exercise == exercise);
+            var before = state is null ? null : SrsSnapshot.Of(state);
             if (state is null)
-                db.SrsStates.Add(new SrsState { WordId = id, Exercise = exercise, Due = now, CreatedAt = now });
+            {
+                state = new SrsState { WordId = id, Exercise = exercise, Due = now, CreatedAt = now };
+                db.SrsStates.Add(state);
+            }
             else
+            {
                 Sm2.Relearn(state, now);
+            }
+            // "I forgot this word" is history too (FR-R11).
+            db.ReviewLog.Add(ReviewLogEntry.Create(
+                id, exercise, ReviewKind.Relearn, grade: null, now, before, state));
         }
         await db.SaveChangesAsync(ct);
         return NoContent();

@@ -23,6 +23,67 @@ namespace AnkiLearner.Infrastructure.Data.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("AnkiLearner.Core.Entities.ReviewLogEntry", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTime?>("DueAfter")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("DueBefore")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<double?>("EaseAfter")
+                        .HasColumnType("double precision");
+
+                    b.Property<double?>("EaseBefore")
+                        .HasColumnType("double precision");
+
+                    b.Property<string>("Exercise")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<string>("Grade")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<int?>("IntervalAfter")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("IntervalBefore")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime?>("PreviousReviewAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("ReviewedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid>("WordId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("WordId", "Exercise", "ReviewedAt");
+
+                    b.ToTable("ReviewLog");
+                });
+
             modelBuilder.Entity("AnkiLearner.Core.Entities.SrsState", b =>
                 {
                     b.Property<Guid>("Id")
@@ -487,6 +548,17 @@ namespace AnkiLearner.Infrastructure.Data.Migrations
                     b.HasKey("UserId", "LoginProvider", "Name");
 
                     b.ToTable("AspNetUserTokens", (string)null);
+                });
+
+            modelBuilder.Entity("AnkiLearner.Core.Entities.ReviewLogEntry", b =>
+                {
+                    b.HasOne("AnkiLearner.Core.Entities.Word", "Word")
+                        .WithMany()
+                        .HasForeignKey("WordId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Word");
                 });
 
             modelBuilder.Entity("AnkiLearner.Core.Entities.SrsState", b =>

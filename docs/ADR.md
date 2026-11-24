@@ -19,6 +19,7 @@
 | [0009](#adr-0009--installable-app-without-a-service-worker) | 2026-11-16 | Installable app without a service worker | Accepted |
 | [0010](#adr-0010--claude-haiku-55-model-and-effort-in-config) | 2026-11-16 | Claude Haiku 5.5; model and effort in config | Accepted |
 | [0011](#adr-0011--appenv-edits-apply-without-a-redeploy) | 2026-11-16 | `app.env` edits apply without a redeploy | Accepted |
+| [0012](#adr-0012--review-log) | 2026-11-24 | Review log | Accepted |
 
 ---
 
@@ -199,3 +200,22 @@
 - **Consequences:**
   - An `app.env` edit takes effect within 5 minutes, or at once with `sudo machinectl shell anki@ /usr/local/bin/anki-deploy`.
   - The script is installed on the host by hand, not shipped by CD. It takes effect only after it is reinstalled there (`infra/README.md`).
+
+## ADR-0012 — Review log
+- **Status:** Accepted (2026-11-24).
+- **Context:**
+  - `SrsState` keeps only the latest snapshot per card, so every grade overwrites the one before. Nothing records *when* a card was reviewed or *which* button was pressed.
+  - The planned FSRS scheduler is fitted to a user's own review history and can replay it. Every day without a log is history lost for good; July–November 2026 already is.
+- **Decision:**
+  - New append-only table `ReviewLog` (`ReviewLogEntry`): one row per event, per direction.
+    - `Kind`: `Review` (a grade press, in-session Again repeats included), `Relearn` (Study again) or `Reset`. Relearn and reset are their own kinds so a later fit or replay doesn't mistake them for grades.
+    - `Source`: `Site`, or `Anki` for a future import of Anki's revlog into the same table.
+    - The grade, the event time, `PreviousReviewAt` (real elapsed time, overdue days included), and interval / ease / due before and after.
+  - The row is written in the same transaction as the state change. Reset inserts its rows and runs `ExecuteDelete` inside one explicit transaction, so a concurrent reset still deletes nothing instead of failing.
+  - Deleting a word deletes its history (cascade); resetting it keeps the history plus a `Reset` row.
+  - No API or UI yet; the data is read with SQL until FSRS needs it.
+- **Consequences:**
+  - About one row per press: a few hundred rows a day at most.
+  - The state before the first logged event of a pre-existing card is in that row's `…Before` columns. Earlier history exists only in Anki's export.
+  - `reviewedToday` (FR-R1) still counts from `SrsState.LastReviewed`; it could move to the log later.
+  - FSRS will add its own columns (stability, difficulty, retrievability) in its migration.

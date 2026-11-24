@@ -17,6 +17,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
     public DbSet<Tag> Tags => Set<Tag>();
     public DbSet<WordTag> WordTags => Set<WordTag>();
     public DbSet<SrsState> SrsStates => Set<SrsState>();
+    public DbSet<ReviewLogEntry> ReviewLog => Set<ReviewLogEntry>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -94,6 +95,20 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
             // Study-next scans by exercise + due date.
             e.HasIndex(s => new { s.Exercise, s.Due });
             e.HasOne(s => s.Word).WithMany(w => w.SrsStates).HasForeignKey(s => s.WordId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<ReviewLogEntry>(e =>
+        {
+            // Enums stored as strings for database readability, like SrsState.Exercise.
+            e.Property(r => r.Exercise).HasConversion<string>().HasMaxLength(30);
+            e.Property(r => r.Kind).HasConversion<string>().HasMaxLength(20);
+            e.Property(r => r.Source).HasConversion<string>().HasMaxLength(20);
+            e.Property(r => r.Grade).HasConversion<string>().HasMaxLength(20);
+            // A card's history, in order.
+            e.HasIndex(r => new { r.WordId, r.Exercise, r.ReviewedAt });
+            // Deleting a word deletes its history; a reset keeps it (FR-R11).
+            e.HasOne(r => r.Word).WithMany().HasForeignKey(r => r.WordId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
     }
