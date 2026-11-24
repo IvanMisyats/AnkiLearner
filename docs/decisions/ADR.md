@@ -1,9 +1,10 @@
 # Architecture Decision Records
 
 > One record per significant decision or feature: the context, what was chosen, and what it costs.
+> Lives in `docs/decisions/` next to the long-form design records (see its README).
 > Append new records at the bottom with the next number. Never rewrite an accepted record. Supersede
 > it with a new one and set the old one's status to "Superseded by ADR-NNNN". Defects to fix later go
-> in [`BACKLOG.md`](BACKLOG.md), not here. Records 0001–0005 were written retroactively (2026-11-16)
+> in [`BACKLOG.md`](../BACKLOG.md), not here. Records 0001–0005 were written retroactively (2026-11-16)
 > from the project history.
 
 | # | Date | Title | Status |
@@ -120,7 +121,7 @@
   - AI mistakes can land in the dictionary, but they stay editable.
   - No schema change or migration.
 - **Links:**
-  - `docs/TRANSLATE_PLAN.md`: design record, review deviations and phases.
+  - `docs/decisions/translate-mode.md`: design record, review deviations and phases.
   - Spec §3.8 (FR-T*).
 
 ## ADR-0007 — Citation form and article-insensitive matching
@@ -249,7 +250,7 @@
   - Study again keeps its meaning (forgotten, no difficulty penalty), but now also counts as reviewed today (FR-R1), because it sets `LastReviewed`.
   - `EaseFactor` / `Repetitions` are legacy inputs; dropping them is a backlog item.
   - Later re-fits apply to already studied cards going forward only. A full recompute from the log is a backlog item, and so is a per-user day start.
-- **Links:** spec §5, FR-S8, FR-I9, FR-R4; `docs/FSRS_PLAN.md`; `Core/Srs/Fsrs.cs`, `Core/Srs/FsrsSetup.cs`, `Api/Services/FsrsInitializer.cs`.
+- **Links:** spec §5, FR-S8, FR-I9, FR-R4; `docs/decisions/fsrs.md`; `Core/Srs/Fsrs.cs`, `Core/Srs/FsrsSetup.cs`, `Api/Services/FsrsInitializer.cs`.
 
 ## ADR-0014 — One learning step for new cards
 - **Status:** Accepted (2026-11-24). Supersedes ADR-0013's "no learning steps".

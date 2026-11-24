@@ -1,7 +1,7 @@
-# Translate mode — implementation plan
+# Translate mode — design record
 
-> Durable plan for the `feature/translate-mode` branch. Source of truth for design decisions and
-> phase progress; update the checklist at the end of every phase.
+> The plan of the `feature/translate-mode` branch, kept as the record of its design decisions,
+> phases and review deviations. Shipped 2026-11-16 (ADR-0006 to ADR-0009).
 
 ## Progress
 

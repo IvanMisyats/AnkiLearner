@@ -77,7 +77,9 @@ AnkiLearner/                  # repo root
   README.md
   docs/
     SPECIFICATION.md          # detailed functional + technical spec
-    ADR.md                    # decision/feature records (why + what + cost), append-only
+    decisions/                # why the app is built this way (see its README)
+      ADR.md                  #   decision log (why + what + cost), append-only
+      <feature>.md            #   design records: long-form reasoning per big feature
     BACKLOG.md                # known defects + follow-ups deliberately not fixed yet
     IMPLEMENTATION_PLAN.md    # phased plan for implementing agents
   backend/
@@ -119,9 +121,12 @@ AnkiLearner/                  # repo root
 - Temporary files go in the scratchpad, **not** the repo.
 - Be concise and direct in code comments and PRs.
 - New env config keys are documented in `README.md` and have safe defaults / graceful degradation.
-- **Record every significant decision or feature** as a new entry in `docs/ADR.md` (append-only;
+- **Record every significant decision or feature** as a new entry in `docs/decisions/ADR.md` (append-only;
   supersede, don't rewrite). **Log defects found but not fixed** in `docs/BACKLOG.md`, and remove the
   item in the commit that fixes it. The repo is public: never log unfixed security vulnerabilities.
+- **A feature worth planning gets a design record** in `docs/decisions/<feature>.md`: write the
+  plan there first (findings, options, phases, live checklist), keep it current while building,
+  and keep it afterwards as the record, linked from its ADR. Personal data stays out (public repo).
 
 ## Implementation status
 
@@ -155,7 +160,7 @@ and known languages via `POST /api/translate` (same Claude provider as lookup) a
 citation-form word cards ("en aftale") with one-tap add, tagged `translated`. Also: article-insensitive
 duplicate matching (`TermNormalizer.MatchCandidates`), new cards served newest-first, "Study again"
 (`POST /api/words/{id}/relearn`), the dashboard moved to `/study`, a safe login `returnUrl`, and an
-installable Android PWA with a share target. Design record and deviations: **`docs/TRANSLATE_PLAN.md`**.
+installable Android PWA with a share target. Design record and deviations: **`docs/decisions/translate-mode.md`**.
 
 **AI model as config** (2026-11-16): lookup and Translate run on `claude-haiku-5-5` at effort
 `low` (ADR-0010). Key, model and effort are `ANTHROPIC_*` lines in the VPS's `app.env` — the one
@@ -172,7 +177,8 @@ pre-FSRS cards are set up from Anki history / the SM-2 snapshot and rescheduled
 (`FsrsInitializer`, after startup and on import / settings change); `.apkg` import can bring the
 `revlog` ("history only" for an existing dictionary); new words come before a backlog, due cards
 highest-recall first. Settings: desired retention + pasted weights (fit them with Anki's
-optimizer, also headless via the `anki` pip package). Plan / design record: `docs/FSRS_PLAN.md`.
+optimizer, also headless via the `anki` pip package). Design record: `docs/decisions/fsrs.md`.
+New cards get one 10-minute learning step (ADR-0014).
 
 ## How to run
 

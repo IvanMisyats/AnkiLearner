@@ -107,3 +107,4 @@ All three require a password-backed JWT, so a leaked token cannot extend or hide
 - [`CLAUDE.md`](CLAUDE.md) — project context and locked decisions (for Claude Code agents)
 - [`docs/SPECIFICATION.md`](docs/SPECIFICATION.md) — detailed functional + technical spec
 - [`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATION_PLAN.md) — phased build plan for implementers
+- [`docs/decisions/`](docs/decisions/) — why it is built this way: the decision log (ADRs) and design records

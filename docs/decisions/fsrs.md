@@ -1,7 +1,8 @@
-# FSRS scheduler — plan
+# FSRS scheduler — design record
 
-> Working plan for replacing SM-2 with FSRS-6. Source of truth while the feature is built; update
-> the status at the end of every phase. Status: **built, waiting for merge and deploy** (2026-11-24).
+> How SM-2 was replaced with FSRS-6: findings, options, the phased plan and what changed while
+> building it. Written as the working plan, kept as the record. Shipped 2026-11-24 (ADR-0012 to
+> ADR-0014); the one learning step for new cards (ADR-0014) came right after.
 > The repo is public: personal numbers (fitted weights, account counts) are kept out of this file.
 
 ## Status
