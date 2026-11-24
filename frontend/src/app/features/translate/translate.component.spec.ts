@@ -110,7 +110,7 @@ describe('TranslateComponent', () => {
       learningLanguage: 'da',
       knownLanguages: ['en', 'uk'],
       dailyNewLimit: 20,
-      maxIntervalDays: 36500,
+      maxIntervalDays: 36500, desiredRetention: 0.9, fsrsWeights: null,
     });
     harness = await RouterTestingHarness.create();
   });
@@ -534,7 +534,7 @@ describe('TranslateComponent', () => {
       learningLanguage: 'de',
       knownLanguages: ['en', 'uk'],
       dailyNewLimit: 20,
-      maxIntervalDays: 36500,
+      maxIntervalDays: 36500, desiredRetention: 0.9, fsrsWeights: null,
     });
     await render('/translate');
 

@@ -13,6 +13,11 @@ public enum ReviewKind
 
     /// <summary>Reset progress: the card's state was deleted and it is new again (FR-D8).</summary>
     Reset,
+
+    /// <summary>The card's first FSRS memory was set up from its SM-2 state and Anki history, and
+    /// it was rescheduled (spec §5). The first such row keeps the SM-2 values in its "before"
+    /// columns, so the setup can be redone later from the same starting point.</summary>
+    Setup,
 }
 
 /// <summary>Where a log row comes from.</summary>
@@ -42,7 +47,7 @@ public class ReviewLogEntry
     public ReviewKind Kind { get; set; }
     public ReviewSource Source { get; set; }
 
-    /// <summary>The button pressed; null for relearn and reset.</summary>
+    /// <summary>The button pressed; null for relearn, reset and setup.</summary>
     public ReviewGrade? Grade { get; set; }
 
     /// <summary>When the event happened (UTC).</summary>
@@ -60,11 +65,23 @@ public class ReviewLogEntry
     public double? EaseAfter { get; set; }
     public DateTime? DueAfter { get; set; }
 
+    // FSRS memory around the event; null in SM-2-era rows and where no memory existed.
+    public double? StabilityBefore { get; set; }
+    public double? DifficultyBefore { get; set; }
+    public double? StabilityAfter { get; set; }
+    public double? DifficultyAfter { get; set; }
+
+    /// <summary>Predicted recall at the event (FSRS); null for a first review.</summary>
+    public double? Retrievability { get; set; }
+
+    /// <summary>Anki's revlog id (epoch ms) for rows imported from Anki; null for site rows.</summary>
+    public long? AnkiRevlogId { get; set; }
+
     /// <summary>Builds a site row. <paramref name="before"/> is null when the card had no state;
     /// <paramref name="after"/> is null when it has none left (reset).</summary>
     public static ReviewLogEntry Create(
         Guid wordId, ExerciseType exercise, ReviewKind kind, ReviewGrade? grade, DateTime now,
-        SrsSnapshot? before, SrsState? after) => new()
+        SrsSnapshot? before, SrsState? after, double? retrievability = null) => new()
     {
         WordId = wordId,
         Exercise = exercise,
@@ -79,11 +96,26 @@ public class ReviewLogEntry
         IntervalAfter = after?.IntervalDays,
         EaseAfter = after?.EaseFactor,
         DueAfter = after?.Due,
+        StabilityBefore = before?.Stability,
+        DifficultyBefore = before?.Difficulty,
+        StabilityAfter = after?.Stability,
+        DifficultyAfter = after?.Difficulty,
+        Retrievability = retrievability,
     };
 }
 
 /// <summary>A copy of the scheduling fields of an <see cref="SrsState"/>, taken before it changes.</summary>
-public sealed record SrsSnapshot(int IntervalDays, double EaseFactor, DateTime Due, DateTime? LastReviewed)
+public sealed record SrsSnapshot(
+    int IntervalDays, double EaseFactor, DateTime Due, DateTime? LastReviewed,
+    double? Stability, double? Difficulty)
 {
-    public static SrsSnapshot Of(SrsState s) => new(s.IntervalDays, s.EaseFactor, s.Due, s.LastReviewed);
+    public static SrsSnapshot Of(SrsState s) =>
+        new(s.IntervalDays, s.EaseFactor, s.Due, s.LastReviewed, s.Stability, s.Difficulty);
+
+    /// <summary>For a state whose memory was worked out on the spot (not set up yet): log the
+    /// memory that was actually used, not the empty columns.</summary>
+    public SrsSnapshot WithMemory(FsrsCard? card) =>
+        Stability is null && card is { } c
+            ? this with { Stability = c.Memory.Stability, Difficulty = c.Memory.Difficulty, LastReviewed = c.LastReviewed }
+            : this;
 }

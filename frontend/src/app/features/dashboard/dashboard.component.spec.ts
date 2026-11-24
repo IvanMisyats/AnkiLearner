@@ -19,7 +19,7 @@ describe('DashboardComponent', () => {
       learningLanguage: 'da',
       knownLanguages: ['en'],
       dailyNewLimit: 20,
-      maxIntervalDays: 36500,
+      maxIntervalDays: 36500, desiredRetention: 0.9, fsrsWeights: null,
     });
   });
 

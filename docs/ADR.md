@@ -11,7 +11,7 @@
 | [0001](#adr-0001--v1-foundation) | 2026-07-02 | v1 foundation | Accepted |
 | [0002](#adr-0002--production-hosting) | 2026-07-25 | Production hosting | Accepted |
 | [0003](#adr-0003--personal-access-tokens) | 2026-07-28 | Personal access tokens | Accepted |
-| [0004](#adr-0004--grade-aware-intervals) | 2026-09-06 | Grade-aware intervals | Accepted |
+| [0004](#adr-0004--grade-aware-intervals) | 2026-09-06 | Grade-aware intervals | Superseded by 0013 |
 | [0005](#adr-0005--reset-progress-and-reviewed-today) | 2026-09-06 | Reset progress and reviewed-today | Accepted |
 | [0006](#adr-0006--translate-mode) | 2026-11-16 | Translate mode | Accepted |
 | [0007](#adr-0007--citation-form-and-article-insensitive-matching) | 2026-11-16 | Citation form and article-insensitive matching | Accepted |
@@ -20,6 +20,7 @@
 | [0010](#adr-0010--claude-haiku-55-model-and-effort-in-config) | 2026-11-16 | Claude Haiku 5.5; model and effort in config | Accepted |
 | [0011](#adr-0011--appenv-edits-apply-without-a-redeploy) | 2026-11-16 | `app.env` edits apply without a redeploy | Accepted |
 | [0012](#adr-0012--review-log) | 2026-11-24 | Review log | Accepted |
+| [0013](#adr-0013--fsrs-6-scheduler) | 2026-11-24 | FSRS-6 scheduler | Accepted |
 
 ---
 
@@ -67,7 +68,7 @@
 - **Links:** `README.md` → API tokens.
 
 ## ADR-0004 — Grade-aware intervals
-- **Status:** Accepted (2026-09-06).
+- **Status:** Superseded by ADR-0013 (2026-11-24). Accepted 2026-09-06.
 - **Context:** textbook SM-2 gives Hard, Good and Easy the same next interval, so the three button hints read alike.
 - **Decision:**
   - Keep the SM-2 ladder as the Good baseline.
@@ -219,3 +220,32 @@
   - The state before the first logged event of a pre-existing card is in that row's `…Before` columns. Earlier history exists only in Anki's export.
   - `reviewedToday` (FR-R1) still counts from `SrsState.LastReviewed`; it could move to the log later.
   - FSRS will add its own columns (stability, difficulty, retrievability) in its migration.
+
+## ADR-0013 — FSRS-6 scheduler
+- **Status:** Accepted (2026-11-24). Supersedes ADR-0004 and the SM-2 part of ADR-0001's decision #8.
+- **Context:**
+  - SM-2 as built here penalised ease −0.32 per Again press (in-session repeats included) and only Easy restored it, so struggling cards sank to the 1.3 floor for good ("ease hell").
+  - It ignored overdue time and restarted the 1 d / 6 d ladder after any lapse. That is costly for a learner who skips sessions.
+  - FSRS (Anki's scheduler since 23.10) models recall per card, predicts it markedly better, and can be fitted to the user's own history. On the primary user's Anki history, fitted weights roughly halved the calibration error of the defaults.
+- **Decision:**
+  - **Engine:** FSRS-6 (21 weights) ported from py-fsrs 6.3.3 into `Core/Srs/Fsrs.cs`. Tests pin values from a calendar-day replay that reproduced Anki's own `compute_memory_state` on a real 1.4k-card collection, plus one real card checked against Anki directly.
+  - **Deviations from py-fsrs, all Anki's behaviour:**
+    - elapsed time in calendar days, cut at UTC midnight (Anki: 04:00 local);
+    - passing intervals kept in order (Good ≥ Hard + 1, Easy ≥ Good + 1);
+    - no learning steps (Again = 10 minutes);
+    - deterministic fuzz, so hints equal what a grade schedules.
+  - **Settings:** desired retention (default 0.90) and pasted weights (default py-fsrs's). Fitting stays outside the app: Anki's optimizer, which also runs headless through the `anki` pip package.
+  - **Setup of pre-FSRS cards ("hybrid"):**
+    - Difficulty from the replayed Anki history, Stability from it where the card wasn't reviewed on the site since the import, else from the SM-2 snapshot.
+    - Without history, a lapse-count heuristic for Difficulty. Converting SM-2 ease was measured and rejected: with fitted weights it put nearly every card at D ≈ 8 where history said ≈ 1.
+    - Every set-up card is rescheduled from its memory.
+  - **Re-running setup:** setup reruns for cards not yet studied under FSRS after startup, after an import and after a change of weights / retention / cap. `Setup` log rows keep the SM-2 starting point, and an unchanged result writes nothing.
+  - **Anki history import (FR-I9):** the `revlog` goes into the review log. A "history only" mode adds no words, so deleted words don't come back. One card per word and direction, picked by the fields FSRS never changes; idempotent.
+  - **Study order:** due Again repeats → new words, while a daily limit allows → due reviews, highest recall first → new words when unlimited → learn-ahead.
+  - **Concurrency:** `SrsState` gets an `xmin` row version. A setup run skips cards changed under it, and a colliding grade or Study again gets 409.
+- **Consequences:**
+  - Intervals get much longer for well-known cards, and a stale backlog shrinks at setup: cards FSRS considers still known leave it.
+  - Study again keeps its meaning (forgotten, no difficulty penalty), but now also counts as reviewed today (FR-R1), because it sets `LastReviewed`.
+  - `EaseFactor` / `Repetitions` are legacy inputs; dropping them is a backlog item.
+  - Later re-fits apply to already studied cards going forward only. A full recompute from the log is a backlog item, and so is a per-user day start.
+- **Links:** spec §5, FR-S8, FR-I9, FR-R4; `docs/FSRS_PLAN.md`; `Core/Srs/Fsrs.cs`, `Core/Srs/FsrsSetup.cs`, `Api/Services/FsrsInitializer.cs`.

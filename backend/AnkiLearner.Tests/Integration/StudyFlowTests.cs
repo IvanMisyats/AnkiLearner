@@ -7,7 +7,7 @@ namespace AnkiLearner.Tests.Integration;
 public class StudyFlowTests(ApiFactory factory) : IClassFixture<ApiFactory>
 {
     [Fact]
-    public async Task NewWords_AppearInCounts_AndAreServedAfterDueCards()
+    public async Task NewWords_AppearInCounts_AndAreServedNewestFirst()
     {
         var client = await factory.CreateAuthenticatedClientAsync();
         await CreateWordAsync(client, "hund", "dog");
@@ -25,8 +25,12 @@ public class StudyFlowTests(ApiFactory factory) : IClassFixture<ApiFactory>
         Assert.Equal("kat", next.Card.Prompt);
         Assert.Contains("cat", next.Card.Answer);
         Assert.Equal(2, next.Remaining);
+        // FSRS default weights: a new card's first grade schedules Hard 1 d, Good 2 d, Easy 8 d
+        // (fuzzed to 6–10 d; intervals under 2.5 d are not fuzzed).
         Assert.Equal("10 min", next.Card.Intervals.Again);
-        Assert.Equal("1 d", next.Card.Intervals.Good);
+        Assert.Equal("1 d", next.Card.Intervals.Hard);
+        Assert.Equal("2 d", next.Card.Intervals.Good);
+        Assert.InRange(int.Parse(next.Card.Intervals.Easy.Replace(" d", "")), 6, 10);
     }
 
     [Fact]
@@ -225,12 +229,13 @@ public class StudyFlowTests(ApiFactory factory) : IClassFixture<ApiFactory>
         Assert.All(after, c => Assert.Equal(1, c.Due));
         Assert.All(after, c => Assert.Equal(0, c.New));
 
-        // A review card again, back on the 1-day rung of the ladder (not a 0-day interval).
+        // A review card again with a dropped Stability: the passing grades are short again, and
+        // kept in order (Hard < Good < Easy) even though they all round to about a day.
         var next = await GetAsync<StudyNextResponse>(client, "/api/study/next?exercise=TargetToKnown");
         Assert.NotNull(next.Card);
         Assert.Equal(word.Id, next.Card.Word.Id);
         Assert.False(next.Card.IsNew);
-        Assert.Equal(new StudyIntervalsDto("10 min", "1 d", "1 d", "4 d"), next.Card.Intervals);
+        Assert.Equal(new StudyIntervalsDto("10 min", "1 d", "2 d", "3 d"), next.Card.Intervals);
 
         // Grading it Good schedules it for tomorrow again.
         var graded = await PostAsync<StudyNextResponse>(client, "/api/study/grade",
@@ -270,7 +275,7 @@ public class StudyFlowTests(ApiFactory factory) : IClassFixture<ApiFactory>
         var next = await GetAsync<StudyNextResponse>(client, "/api/study/next?exercise=KnownToTarget");
         Assert.NotNull(next.Card);
         Assert.Equal(word.Id, next.Card.Word.Id);
-        Assert.False(next.Card.IsNew);
+        Assert.True(next.Card.IsNew); // due now, but never studied: no FSRS memory yet
     }
 
     // --- helpers ---

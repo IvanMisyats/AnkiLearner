@@ -10,7 +10,20 @@ public class ApkgFormatException(string message) : Exception(message);
 /// <param name="Due">For review cards: days since collection creation.</param>
 /// <param name="IntervalDays">`ivl` — positive = days, negative = seconds (learning).</param>
 /// <param name="EaseFactor">`factor` in permille, e.g. 2500 = 2.5.</param>
-public record ApkgCard(int Ord, int Type, int Queue, long Due, int IntervalDays, int EaseFactor, int Reps, int Lapses);
+public record ApkgCard(int Ord, int Type, int Queue, long Due, int IntervalDays, int EaseFactor, int Reps, int Lapses)
+{
+    /// <summary>The card's review history from `revlog`, oldest first (spec FR-I9).</summary>
+    public List<ApkgReview> Reviews { get; init; } = [];
+}
+
+/// <summary>One graded review from Anki's `revlog` table (spec FR-I9).</summary>
+/// <param name="Id">The review time in epoch milliseconds (Anki uses it as the row id).</param>
+/// <param name="Ease">The button: 1 Again, 2 Hard, 3 Good, 4 Easy.</param>
+/// <param name="IntervalDays">`ivl` after the review: positive = days, negative = seconds (learning).</param>
+/// <param name="LastIntervalDays">`lastIvl` before the review, same units.</param>
+/// <param name="Factor">`factor` after the review, permille (0 while learning).</param>
+/// <param name="Type">0 learning, 1 review, 2 relearning, 3 filtered deck (rescheduling).</param>
+public record ApkgReview(long Id, int Ease, int IntervalDays, int LastIntervalDays, int Factor, int Type);
 
 public record ApkgNote(string Front, string Back, List<string> Tags, string DeckName, List<ApkgCard> Cards);
 

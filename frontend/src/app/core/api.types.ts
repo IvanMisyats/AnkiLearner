@@ -12,6 +12,21 @@ export interface SettingsDto {
   dailyNewLimit: number;
   /** Ceiling on the SRS interval, in days. */
   maxIntervalDays: number;
+  /** FSRS: target chance of remembering a card when it comes due, 0.70–0.97. */
+  desiredRetention: number;
+  /** The user's own 21 FSRS weights; null = the defaults. On save, [] also means the defaults. */
+  fsrsWeights: number[] | null;
+}
+
+/** PUT /api/settings. The FSRS fields are optional: left out = unchanged on the server. */
+export interface UpdateSettingsRequest {
+  learningLanguage: string;
+  knownLanguages: string[];
+  dailyNewLimit: number;
+  maxIntervalDays: number;
+  desiredRetention?: number;
+  /** [] = back to the default weights. */
+  fsrsWeights?: number[];
 }
 
 export interface AuthResponse {
@@ -138,12 +153,26 @@ export interface ImportPreviewResponse {
   new: number;
   duplicates: number;
   withProgress: number;
+  /** Words already in the dictionary that the file has Anki review history for. */
+  existingWithHistory: number;
   skipped: string[];
+}
+
+export interface ImportCommitRequest {
+  importDuplicates: boolean;
+  importProgress: boolean;
+  /** Bring each imported card's Anki review history along (FSRS starts from it). */
+  importHistory: boolean;
+  /** Add no words: only give existing words their Anki review history. */
+  historyOnly: boolean;
 }
 
 export interface ImportCommitResponse {
   imported: number;
   statesImported: number;
+  /** Cards that received Anki review history, and how many reviews that was. */
+  historyCards: number;
+  historyReviews: number;
 }
 
 export type ExerciseType = 'TargetToKnown' | 'KnownToTarget';

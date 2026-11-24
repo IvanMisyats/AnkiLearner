@@ -38,8 +38,13 @@ public class ReviewLogTests(ApiFactory factory) : IClassFixture<ApiFactory>
         Assert.Null(again.EaseBefore);
         Assert.Null(again.DueBefore);
         Assert.Equal(0, again.IntervalAfter);
-        Assert.Equal(2.5 - 0.32, again.EaseAfter!.Value, precision: 10);
-        Assert.Equal(again.ReviewedAt.AddMinutes(Sm2.AgainMinutes), again.DueAfter!.Value, TimeSpan.FromMilliseconds(1));
+        Assert.Equal(2.5, again.EaseAfter); // legacy SM-2 ease, untouched by FSRS
+        Assert.Null(again.StabilityBefore);
+        Assert.Null(again.Retrievability);
+        var initial = Fsrs.Initial(ReviewGrade.Again, Fsrs.DefaultWeights);
+        Assert.Equal(initial.Stability, again.StabilityAfter);
+        Assert.Equal(initial.Difficulty, again.DifficultyAfter);
+        Assert.Equal(again.ReviewedAt.AddMinutes(Fsrs.AgainMinutes), again.DueAfter!.Value, TimeSpan.FromMilliseconds(1));
 
         // The repeat in the same session is logged too, chained to the first press.
         var good = log[1];
@@ -48,12 +53,17 @@ public class ReviewLogTests(ApiFactory factory) : IClassFixture<ApiFactory>
         Assert.Equal(again.IntervalAfter, good.IntervalBefore);
         Assert.Equal(again.EaseAfter, good.EaseBefore);
         Assert.Equal(again.DueAfter!.Value, good.DueBefore!.Value, TimeSpan.FromMilliseconds(1));
-        Assert.Equal(1, good.IntervalAfter);
+        Assert.Equal(again.StabilityAfter, good.StabilityBefore);
+        Assert.Equal(again.DifficultyAfter, good.DifficultyBefore);
+        Assert.Equal(1.0, good.Retrievability); // same day
+        Assert.Equal(2, good.IntervalAfter); // tiny S → Hard 1 d, so Good is kept at 2 d
 
         // The log mirrors the state the grade produced.
         var state = await StateAsync(word.Id, ExerciseType.TargetToKnown);
         Assert.Equal(state.IntervalDays, good.IntervalAfter);
         Assert.Equal(state.EaseFactor, good.EaseAfter);
+        Assert.Equal(state.Stability, good.StabilityAfter);
+        Assert.Equal(state.Difficulty, good.DifficultyAfter);
         Assert.Equal(state.Due, good.DueAfter!.Value, TimeSpan.FromMilliseconds(1));
     }
 
@@ -72,12 +82,17 @@ public class ReviewLogTests(ApiFactory factory) : IClassFixture<ApiFactory>
         Assert.All(relearns, r => Assert.Null(r.Grade));
 
         var studied = relearns.Single(r => r.Exercise == ExerciseType.TargetToKnown);
-        Assert.Equal(1, studied.IntervalBefore);
+        Assert.Equal(2, studied.IntervalBefore); // a new card's first Good: 2 d
         Assert.Equal(0, studied.IntervalAfter);
         Assert.NotNull(studied.PreviousReviewAt);
+        // Forgotten: Stability drops, Difficulty is kept (no penalty).
+        Assert.True(studied.StabilityAfter < studied.StabilityBefore);
+        Assert.Equal(studied.DifficultyBefore, studied.DifficultyAfter);
+        Assert.Equal(1.0, studied.Retrievability); // relearned the same day it was graded
 
         var unstudied = relearns.Single(r => r.Exercise == ExerciseType.KnownToTarget);
         Assert.Null(unstudied.IntervalBefore);
+        Assert.Null(unstudied.StabilityAfter); // never reviewed: no memory to drop
         Assert.Null(unstudied.PreviousReviewAt);
         Assert.Equal(0, unstudied.IntervalAfter);
         Assert.NotNull(unstudied.DueAfter);

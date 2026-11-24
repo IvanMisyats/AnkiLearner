@@ -21,7 +21,7 @@ The app is **generic**: the learning language and the user's known languages are
 2. Personal dictionary: create / read / update / delete words and phrases, with tags and search.
 3. Add-word flow with **manual entry** and **AI-assisted lookup** (multiple meanings, IPA
    transcription, part of speech, gender, example sentence) — everything editable before save.
-4. **Import** an existing AnkiDroid `.apkg` export — words, tags, **and study progress**.
+4. **Import** an existing AnkiDroid `.apkg` export — words, tags, **study progress and review history**.
 5. **Study** via SRS in two directions (target→known, known→target), AnkiDroid-style confidence
    grading, with the ability to **correct the word** when the answer is shown.
 6. Per-user **settings**: learning language, known languages, daily limits.
@@ -34,7 +34,7 @@ The app is **generic**: the learning language and the user's known languages are
 - Game-like exercises: **word assembler** (assemble a word from letters) and **crossword**.
 - Export back to `.apkg`.
 - Audio / text-to-speech pronunciation.
-- FSRS scheduling, per-language study directions, mobile apps, social/sharing features.
+- Per-language study directions, mobile apps, social/sharing features.
 - Per-user AI keys (v1 uses a single server-level key).
 
 These are designed *around* so they can be added without rework (see §10).
@@ -56,7 +56,7 @@ wants translations available in both. Previously used AnkiDroid; has ~945 words 
   cards, one per exercise/direction.)
 - **Exercise / direction** — a study mode for a word, e.g. `TargetToKnown`. SRS progress is tracked
   per `(word, exercise)`.
-- **SRS** — spaced-repetition scheduling. v1 uses **SM-2**.
+- **SRS** — spaced-repetition scheduling. The app uses **FSRS-6** (§5); it used SM-2 until 2026-11.
 - **Tag** — a free-form label on a word, used for organizing and for filtering study sessions.
   Imported Anki decks become tags.
 
@@ -92,6 +92,11 @@ wants translations available in both. Previously used AnkiDroid; has ~945 words 
 - **FR-S7** Changing the learning language does **not** delete anything: words are stamped with
   their language (§4.1), and the dictionary/study views show only words matching the **current**
   learning language. Switching back restores the previous dictionary.
+- **FR-S8** **Scheduling settings** (§5): **desired retention** (70–97%, default 90%: the target
+  chance of remembering a card when it comes due) and optional **FSRS weights** (21 numbers fitted to
+  the user's own history, e.g. by Anki's optimizer; empty = defaults; validated against FSRS bounds).
+  Saving a different retention, weight set or maximum interval sets up again every card not yet
+  studied under FSRS (§5.4).
 
 ### 3.3 Dictionary management
 
@@ -109,9 +114,9 @@ wants translations available in both. Previously used AnkiDroid; has ~945 words 
 - **FR-D8** **Reset a word's progress**: drop its SRS states in *all* directions so it is offered
   as new again, keeping the word, its translations and its tags. Confirmed in the UI before it runs.
   **Relearn** ("Study again", for a word the user forgot) is the gentler sibling: every direction
-  becomes **due now**. An existing state is treated as a lapse (`Repetitions = 0`,
-  `IntervalDays = 0`, `Lapses + 1`, ease kept, `Due = min(Due, now)` so an overdue card keeps its
-  place; `Sm2.Relearn`); a direction never studied gets a new state due
+  becomes **due now**. An existing state is treated as a forgetting (§5.5: Stability drops as for
+  Again, Difficulty kept, `IntervalDays = 0`, `Lapses + 1`, `Due = min(Due, now)` so an overdue card
+  keeps its place); a direction never studied gets a new state due
   now, which counts toward today's new-word allowance (FR-R7). Unlike a reset, the word does not
   rejoin the new-card queue, where newest-first ordering (FR-R4) would put an old word last.
   Not destructive, so no confirmation: a **Study again** button sits next to Reset progress on
@@ -162,7 +167,8 @@ The add-word form is always usable manually; AI lookup pre-fills it.
   space-separated `notes.tags` column) → tags as well. Reversed-card notetypes still produce a
   single Word (both directions handled by SRS exercises).
 - **FR-I3** The user sees a **preview** (counts: new, duplicates by target term, notes with
-  progress, skipped) and confirms before committing. Import is scoped to the current user.
+  progress, existing words the file has review history for, skipped) and confirms before
+  committing. Import is scoped to the current user.
 - **FR-I4** **Duplicate handling**: by default skip words whose **normalized** target term (HTML
   stripped, trimmed, case-insensitive) already exists for the user in the current learning
   language; option to import anyway. Imported words get an `imported` tag + the deck/note tags.
@@ -172,18 +178,30 @@ The add-word form is always usable manually; AI lookup pre-fills it.
   scheduling state is mapped best-effort onto `SrsState`. Anki `cards` rows join notes via `nid`;
   `ord` 0 → `TargetToKnown`, `ord` 1 → `KnownToTarget` (reversed notetypes). Per card:
   - **review cards** (`type` = 2): `IntervalDays = ivl` (positive = days), `EaseFactor =
-    factor / 1000` (if 0 ⇒ 2.5; floor 1.3), `Lapses = lapses`, `Repetitions = max(2, reps)` so the
-    next successful review multiplies the interval instead of restarting the 1d/6d ladder,
+    factor / 1000` (if 0 ⇒ 2.5; floor 1.3), `Lapses = lapses`, `Repetitions = max(2, reps)` (an
+    SM-2-era rule, kept because FSRS setup and history matching read these fields),
     `Due = col.crt + due × 86400 s` (`due` for review cards is days since collection creation;
     past dates simply mean "due now"), `LastReviewed = null`.
   - **new** (`type` = 0) and **learning** (`type` = 1/3) cards: no `SrsState` — treated as new.
   - **suspended** (`queue` = -1): word imported, no `SrsState`.
   The mapping is approximate by design and documented in the UI ("progress is carried over
-  approximately"). With the option off, all imported words start as new.
+  approximately"). With the option off, all imported words start as new. The mapped SM-2 state is
+  then given an FSRS memory and rescheduled (§5.4).
 - **FR-I8** **Format detection:** v1 supports the modern v3 package (`collection.anki21b`,
   zstd). Legacy packages (plain `collection.anki21`/`.anki2` without the v3 meta) are detected and
   rejected with a clear message telling the user to re-export from a current AnkiDroid/Anki
   version. (Legacy support may be added later.)
+- **FR-I9** **Review history** (Anki `revlog`): graded rows (ease 1–4, types 0–3) are imported into
+  the review log (FR-R11) as `Source = Anki` rows, and FSRS replays them (§5.4).
+  - **Import review history** (commit option, default on with progress): each imported card that
+    got a state also gets its history.
+  - **History only** (a second commit action): adds **no** words, so a re-upload never brings back
+    words deleted since; gives each existing word's directions the history of its Anki card, then
+    sets FSRS up again. Matching: the normalized term (a term shared by several words is skipped)
+    and the card's `ord`. Only directions with a state get history. When several notes map to one
+    word, the card whose ease / lapses / repetitions the state still carries from the first import
+    wins; with no unique match the card is skipped. A card that already has Anki rows is skipped,
+    so a re-upload changes nothing (also enforced by a unique index on `AnkiRevlogId`).
 
 ### 3.6 Study / review (SRS)
 
@@ -198,9 +216,11 @@ The add-word form is always usable manually; AI lookup pre-fills it.
     term (+ transcription, example).
 - **FR-R3** The review flow is AnkiDroid-style: show prompt → **"Show answer"** → reveal →
   four grade buttons **Again / Hard / Good / Easy**, each annotated with the resulting interval.
-- **FR-R4** Grading applies **SM-2** (§5) to that `(word, exercise)` SRS state and advances to the
-  next card. Card selection: **due reviews first** (oldest `Due`), then **new** words, **newest
-  first** so words met today come up next (respecting the daily new limit), then nothing-due state.
+- **FR-R4** Grading applies **FSRS** (§5) to that `(word, exercise)` SRS state and advances to the
+  next card. Card selection (§5.6): due **Again** repeats first; then **new** words, **newest
+  first**, while a daily new limit allows, so a word met today comes up today even with a backlog;
+  then due reviews, **highest predicted recall first**; with no daily limit, new words only after
+  the due reviews; then learn-ahead (FR-R9); then nothing-due state.
 - **FR-R5** **Correct my knowledge**: from the revealed answer the user can open an inline editor to
   fix the word (translation/transcription/etc.) without leaving the session.
 - **FR-R6** Keyboard shortcuts: `Space` = show answer; `1`–`4` = Again/Hard/Good/Easy.
@@ -214,10 +234,12 @@ The add-word form is always usable manually; AI lookup pre-fills it.
   labels in the UI use the user's actual language names (e.g. "Danish → English/Ukrainian").
 - **FR-R11** **Review log:** every grade press (in-session repeats included), every Relearn and
   every Reset (FR-D8) appends one row per direction to `ReviewLog`, in the same transaction as the
-  state change: kind, grade, time, the card's previous review time, and interval / ease / due
-  before and after. Rows are never updated. A reset keeps the history; deleting the word deletes
-  it. Not exposed in the API or UI yet; it exists so the scheduler can be fitted to and replayed
-  over the user's real history (ADR-0012).
+  state change: kind, grade, time, the card's previous review time, interval / ease / due and FSRS
+  stability / difficulty before and after, and the predicted recall at the event. FSRS setups
+  (§5.4) add `Setup` rows, and an Anki history import (FR-I9) adds `Source = Anki` rows. Rows are
+  never updated. A reset keeps the history; deleting the word deletes it. Not exposed in the API
+  or UI yet; it exists so the scheduler can be fitted to and replayed over the user's real
+  history (ADR-0012).
 
 ### 3.7 AI provider abstraction
 
@@ -323,6 +345,8 @@ FK (directly or transitively) and are filtered by it. Timestamps in UTC.
 | KnownLanguages | text[] (or JSON) | ordered; first = primary |
 | DailyNewLimit | int | default 20; 0 = unlimited |
 | MaxIntervalDays | int | SRS interval ceiling; default 36500 |
+| DesiredRetention | double | FSRS target recall, 0.70–0.97; default 0.90 |
+| FsrsWeights | double[]? | 21 FSRS weights; null = defaults |
 | CreatedAt / UpdatedAt | timestamptz | |
 
 **Word** (owned by User)
@@ -359,18 +383,20 @@ FK (directly or transitively) and are filtered by it. Timestamps in UTC.
 
 **WordTag** (M:N) — `(WordId, TagId)` composite PK, both cascade.
 
-**SrsState** (SM-2 state per word+exercise)
+**SrsState** (FSRS memory + schedule per word+exercise)
 | field | type | notes |
 |---|---|---|
 | Id | GUID PK | |
 | WordId | GUID FK | cascade delete |
 | Exercise | text | enum stored as string: `TargetToKnown`, `KnownToTarget`, (later `Typing`,`Anagram`) |
 | Due | timestamptz | next review |
-| IntervalDays | int | current interval |
-| EaseFactor | double | start 2.5, min 1.3 |
-| Repetitions | int | consecutive successes |
+| IntervalDays | int | current interval (0 = in an Again repeat) |
+| Stability / Difficulty | double? | FSRS memory; null = new or not set up yet (§5.4) |
+| EaseFactor | double | legacy SM-2 (start 2.5, min 1.3); input for setup, no longer changed |
+| Repetitions | int | legacy SM-2 consecutive successes; input for setup, no longer changed |
 | Lapses | int | times forgotten |
-| LastReviewed | timestamptz? | |
+| LastReviewed | timestamptz? | the memory's date |
+| Version | xid (`xmin`) | row version: optimistic concurrency, no real column |
 | **unique** (WordId, Exercise) | | |
 
 **ReviewLogEntry** (table `ReviewLog`; append-only history, FR-R11)
@@ -379,14 +405,18 @@ FK (directly or transitively) and are filtered by it. Timestamps in UTC.
 | Id | bigint PK (identity) | insertion order breaks timestamp ties |
 | WordId | GUID FK | cascade delete |
 | Exercise | text | as in SrsState |
-| Kind | text | `Review`, `Relearn`, `Reset` |
-| Source | text | `Site`, `Anki` (imported revlog) |
-| Grade | text? | `Again`/`Hard`/`Good`/`Easy`; null for Relearn/Reset |
+| Kind | text | `Review`, `Relearn`, `Reset`, `Setup` (§5.4) |
+| Source | text | `Site`, `Anki` (imported revlog, FR-I9) |
+| Grade | text? | `Again`/`Hard`/`Good`/`Easy`; null for Relearn/Reset/Setup |
 | ReviewedAt | timestamptz | event time |
 | PreviousReviewAt | timestamptz? | the card's `LastReviewed` before the event |
 | IntervalBefore / EaseBefore / DueBefore | int? / double? / timestamptz? | null if no state existed |
 | IntervalAfter / EaseAfter / DueAfter | int? / double? / timestamptz? | null after a reset |
+| StabilityBefore/After, DifficultyBefore/After | double? | FSRS memory around the event |
+| Retrievability | double? | predicted recall at the event (FSRS) |
+| AnkiRevlogId | bigint? | Anki revlog id (epoch ms) of an imported row |
 | index (WordId, Exercise, ReviewedAt) | | |
+| **unique** (WordId, Exercise, AnkiRevlogId) where AnkiRevlogId set | | |
 
 ### 4.2 Notes on the model
 
@@ -401,60 +431,95 @@ FK (directly or transitively) and are filtered by it. Timestamps in UTC.
 
 ---
 
-## 5. SRS algorithm (SM-2 + Anki grade modifiers) — exact spec
+## 5. SRS algorithm (FSRS-6)
 
-Ported from the POC (`DanishLearner/src/Services/Sm2.cs`). Buttons map to SM-2 quality:
+Ported from py-fsrs 6.3.3 (`fsrs/scheduler.py`): formulas, default weights, weight bounds and fuzz
+ranges. Code: `Core/Srs/Fsrs.cs` (pure engine), `Core/Srs/FsrsSetup.cs` and
+`Api/Services/FsrsInitializer.cs` (setup of pre-FSRS cards). Decision record: ADR-0013. Until
+2026-11 the app used SM-2 (ADR-0004, superseded).
 
-| Button | Grade | Quality |
+### 5.1 Model
+
+- Each `(word, exercise)` card has a **memory**: Stability **S** (days until predicted recall falls
+  to 90%), Difficulty **D** (1–10) and the time of its last review.
+- Retrievability after *t* days: `R = (1 + F·t/S)^(−w20)`, `F = 0.9^(−1/w20) − 1`.
+- The buttons are FSRS ratings: Again / Hard / Good / Easy = 1 / 2 / 3 / 4.
+- First review: `S = w[rating−1]`, `D = w4 − e^(w5·(rating−1)) + 1` (clamped to 1–10).
+- Later reviews: on the same calendar day, the short-term S formula; otherwise the recall formula
+  (Hard / Good / Easy, with hard penalty w15 and easy bonus w16) or the forget formula (Again, capped
+  by the short-term one), using R at review time. D moves by linear damping and mean reversion
+  (w6, w7). Exact formulas: py-fsrs, mirrored in `Fsrs.cs`.
+- **Weights**: 21 per user (FR-S8), py-fsrs's defaults when unset, validated against py-fsrs's
+  bounds. Fitting them to one's own history (e.g. Anki: Deck options → FSRS → Optimize) happens
+  outside the app.
+
+### 5.2 Scheduling a grade
+
+- **Again** → due again in **10 minutes** (in-session repeat), `IntervalDays = 0`, `Lapses + 1`.
+- **Hard / Good / Easy** → `interval = round(S/F · (r^(−1/w20) − 1))` for desired retention *r*
+  (FR-S8), at least 1 day and at most `MaxIntervalDays`, then **fuzzed**, then kept in order:
+  Good ≥ Hard + 1 day, Easy ≥ Good + 1 day (capped).
+- **Fuzz** (py-fsrs ranges, intervals ≥ 2.5 d) spreads the cards reviewed in one sitting. It is
+  deterministic — seeded by word, exercise and the last review time — so a button's hint is exactly
+  what that grade schedules (unless UTC midnight passes in between).
+- Button hints: Again "10 min"; otherwise "N d" (< 31 days), "N.N mo" (< 1 year), "N.N y".
+- The legacy SM-2 fields `EaseFactor` and `Repetitions` are no longer changed.
+- A grade that collides with a concurrent update of the same card (another device, a setup run)
+  gets 409 and saves nothing (`SrsState` row version).
+
+### 5.3 Deliberate differences from py-fsrs
+
+- Elapsed time counts **calendar days**, as Anki does (Anki's optimizer fits weights that way).
+  Days start at **UTC midnight**, the app's day everywhere; Anki starts them at 04:00 local. For
+  European users the two hardly ever split a session differently; elsewhere they can (BACKLOG).
+- **No learning steps**: Again always means 10 minutes; any passing grade, a new card's first
+  included, schedules a day interval.
+- Passing intervals are kept in order (Anki's rule), so the three buttons never read alike.
+
+### 5.4 Setting up FSRS for pre-FSRS cards
+
+Cards that predate FSRS — SM-2 states and imported Anki progress — get a first memory and are
+**rescheduled**: `IntervalDays = fuzzed interval`, `Due = last review + IntervalDays` (in the past =
+due now).
+
+| case | D | S and last review |
 |---|---|---|
-| Again | 0 | 2 |
-| Hard | 1 | 3 |
-| Good | 2 | 4 |
-| Easy | 3 | 5 |
+| Anki history, not reviewed on the site (`LastReviewed` null) | replay of the history | replay (exact) |
+| Anki history, reviewed on the site | replay, then one Again step per site lapse and up to three Good steps for `Repetitions` | snapshot: `S = max(IntervalDays, w0)`, last = `LastReviewed` |
+| no Anki history | lapse heuristic | snapshot; last = `LastReviewed`, or `Due − IntervalDays` for an import |
+| never reviewed (no last review, no interval) | — | no memory: the first grade is a new card's |
 
-On grade `q` for state `s` at time `now`:
+- Anki history = `Source = Anki` log rows newer than the state's `CreatedAt` and the card's latest
+  `Reset` row, so a word reset or re-added since starts fresh.
+- Site lapses = `Lapses` minus the Anki review lapses (Again on a card that had an interval).
+- **Lapse heuristic**: D0(Good), one Again step per lapse, up to three Good steps. On a real
+  1.4k-card collection it matched the replayed D (median error 0).
+- The snapshot under-rates a card whose site reviews went well; its first FSRS review then sees a
+  lower predicted R and raises S accordingly.
+- **Eligible**: a card with no FSRS-era review (no Review / Relearn log row with a stability).
+  Each setup writes a `Setup` log row; the first one keeps the SM-2 values in its "before" columns,
+  so a later setup starts from the same point. A setup with an unchanged result writes nothing.
+- **Triggers**: (1) after startup, in the background, for every user — failures are logged and
+  never stop the API; (2) after an Anki import with progress or history; (3) after saving a
+  different retention, weight set or maximum interval (FR-S8). A card graded, previewed or
+  relearned before a setup reached it is set up on the spot with the same rule.
+- A setup run skips a card that changed while it ran (`SrsState` row version).
 
-```
-if q < 3:                      # forgot
-    s.Repetitions = 0
-    s.IntervalDays = 0
-    s.Lapses += 1
-else:
-    previous = s.IntervalDays
-    s.Repetitions += 1
+### 5.5 Study again (FR-D8)
 
-    # Baseline for a "Good" answer: the SM-2 ladder.
-    good = 1                       if Repetitions == 1
-           6                       if Repetitions == 2
-           previous * Ease         otherwise
+S drops to the forget stability at the current R; **D is kept** (no penalty); `LastReviewed = now`,
+so the review that follows the same day uses the short-term formula; `Lapses + 1`; due now (an
+overdue card keeps its earlier due). A card never reviewed just becomes due now (no lapse counted).
 
-    days = min(good, max(1, previous * 1.2))   if q == 3   # Hard
-           4                                    if q == 5 and Repetitions == 1   # Easy, new card
-           good * 1.3                           if q == 5                        # Easy
-           good                                 otherwise                        # Good
+### 5.6 Card order (FR-R4)
 
-    s.IntervalDays = clamp(round(days), 1, MaxIntervalDays)
-
-s.EaseFactor += 0.1 - (5-q)*(0.08 + (5-q)*0.02)
-if s.EaseFactor < 1.3: s.EaseFactor = 1.3
-
-s.Due = now + 10 minutes    if q < 3
-        now + IntervalDays   otherwise
-s.LastReviewed = now
-```
-
-- **Why the Hard/Easy modifiers.** Textbook SM-2 derives the interval from the ease factor alone,
-  so Hard/Good/Easy all produce the *same* next interval and only diverge one review later, when
-  the changed ease is finally used. That makes the three button hints identical on every mature
-  card. We keep the SM-2 ladder as the Good baseline and add Anki's **hard factor (1.2)**,
-  **easy bonus (1.3)** and **easy interval (4 d)** so the buttons differ when they are pressed.
-  Ease still moves by the SM-2 formula.
-- **`MaxIntervalDays`** is a per-user setting (`UserSettings`, default 36500 — Anki's default).
-  It caps every passing grade; "Again" is unaffected.
-- **Interval preview** for each button (shown on the button) is computed by applying the rule to a
-  copy of the state without mutating it.
-- "Again" reschedules within the session (+10 min) without corrupting the day interval.
-- A missing state is treated as a fresh `SrsState` (Ease 2.5, Interval 0, Reps 0).
+1. Due **Again** repeats (`IntervalDays = 0`), oldest due first.
+2. **New** words, newest first, while the daily new limit allows — only when a limit is set.
+3. Due reviews, **highest retrievability first**: with a backlog, a card that just crossed the
+   threshold is cheap to keep and losing recall fastest, while a long-forgotten one loses little more
+   by waiting. Cards without memory follow, oldest due first.
+4. With no daily limit (0): new words after the due reviews.
+5. Learn-ahead (FR-R9).
 
 ---
 
@@ -471,7 +536,7 @@ Auth via `Authorization: Bearer <jwt>` except register/login/refresh. All list e
 
 **Settings**
 - `GET /api/settings`
-- `PUT /api/settings` `{ learningLanguage, knownLanguages[], dailyNewLimit, maxIntervalDays? }`
+- `PUT /api/settings` `{ learningLanguage, knownLanguages[], dailyNewLimit, maxIntervalDays?, desiredRetention?, fsrsWeights? }` — omitted = unchanged; `fsrsWeights: []` = back to the defaults
   (`maxIntervalDays` is optional; omitting it leaves the stored value unchanged)
 - `GET /api/languages` → catalog `[{ code, name }]`
 
@@ -501,11 +566,11 @@ Auth via `Authorization: Bearer <jwt>` except register/login/refresh. All list e
 **Study**
 - `GET  /api/study/counts?tag=` → per-exercise `{ due, new, reviewedToday }`
 - `GET  /api/study/next?exercise=&tag=` → `{ word, prompt, answerHidden, intervals{Again,Hard,Good,Easy}, remaining }`
-- `POST /api/study/grade` `{ wordId, exercise, grade }` → applies SM-2, returns next card
+- `POST /api/study/grade` `{ wordId, exercise, grade }` → applies FSRS, returns next card (400 for an unknown grade, 409 on a concurrent update)
 
 **Import**
-- `POST /api/import/apkg` (multipart file) → preview `{ importId, total, new, duplicates, withProgress, skipped[] }`
-- `POST /api/import/apkg/{importId}/commit` `{ importDuplicates: bool, importProgress: bool }` → `{ imported, statesImported }`
+- `POST /api/import/apkg` (multipart file) → preview `{ importId, total, new, duplicates, withProgress, existingWithHistory, skipped[] }`
+- `POST /api/import/apkg/{importId}/commit` `{ importDuplicates, importProgress, importHistory?, historyOnly? }` → `{ imported, statesImported, historyCards, historyReviews }`
 
 All endpoints validate input and return RFC-7807 problem responses on error.
 
@@ -549,9 +614,11 @@ All endpoints validate input and return RFC-7807 problem responses on error.
   - `/words/new`, `/words/:id/edit` — add/edit form with **Look up** button and editable fields,
     translations per known language, tags; for an existing word, **Study again** and
     **Reset progress** (FR-D8).
-  - `/import` — upload `.apkg`, preview, confirm. Reached from the Dictionary page ("Import from
-    Anki", next to "Add word"), not the toolbar.
-  - `/settings` — learning language, known languages, daily limit.
+  - `/import` — upload `.apkg`, preview, confirm (with or without the review history), or
+    **History only** for words already imported (FR-I9). Reached from the Dictionary page
+    ("Import from Anki", next to "Add word"), not the toolbar.
+  - `/settings` — learning language, known languages, daily limit, maximum interval, desired
+    retention and FSRS weights (FR-S8; the FSRS fields are sent only when changed).
 - **Toolbar:** the brand (→ `/`), then **Translate**, **Learn** (`/study`), **Dictionary**,
   **Settings** and **Sign out**. The current section gets a tinted pill and `aria-current="page"`;
   Learn stays active during a review (`/study/:exercise`) and nothing is active on `/`. Up to
@@ -612,7 +679,7 @@ All endpoints validate input and return RFC-7807 problem responses on error.
 - **Reliability:** EF Core migrations applied on startup; import is transactional per commit.
 - **Portability/generic:** no hard-coded language; Danish-specifics (e.g. `en/et` gender) come from
   the AI prompt per target language, not from app logic.
-- **Testability:** SM-2 engine and `.apkg` parser are pure/unit-testable; API has integration tests
+- **Testability:** FSRS engine and `.apkg` parser are pure/unit-testable; API has integration tests
   against a disposable Postgres (Testcontainers) or in-memory provider where adequate.
 - **Observability:** structured logging; health endpoint `GET /api/health`.
 - **Usability:** fully responsive (phone-first for the study flow); keyboard shortcuts on desktop.
@@ -640,6 +707,6 @@ All endpoints validate input and return RFC-7807 problem responses on error.
 - **Word assembler** and **crossword** — new `Exercise` enum values + new study UIs; SRS model
   already supports per-exercise state.
 - **Export to `.apkg`** (native C# writer) — inverse of the importer.
-- **Audio / TTS** pronunciation, FSRS scheduler, per-language study directions.
+- **Audio / TTS** pronunciation, per-language study directions, an in-app FSRS optimizer.
 - **Per-user AI keys**, additional providers (DeepL/Google) via the existing `IWordLookupProvider`.
 - **CI/CD + production deploy** (Docker images, registry, reverse proxy + TLS) — deferred phase.

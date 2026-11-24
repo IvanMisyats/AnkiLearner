@@ -31,6 +31,15 @@ namespace AnkiLearner.Infrastructure.Data.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
 
+                    b.Property<long?>("AnkiRevlogId")
+                        .HasColumnType("bigint");
+
+                    b.Property<double?>("DifficultyAfter")
+                        .HasColumnType("double precision");
+
+                    b.Property<double?>("DifficultyBefore")
+                        .HasColumnType("double precision");
+
                     b.Property<DateTime?>("DueAfter")
                         .HasColumnType("timestamp with time zone");
 
@@ -66,6 +75,9 @@ namespace AnkiLearner.Infrastructure.Data.Migrations
                     b.Property<DateTime?>("PreviousReviewAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<double?>("Retrievability")
+                        .HasColumnType("double precision");
+
                     b.Property<DateTime>("ReviewedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -74,10 +86,20 @@ namespace AnkiLearner.Infrastructure.Data.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
 
+                    b.Property<double?>("StabilityAfter")
+                        .HasColumnType("double precision");
+
+                    b.Property<double?>("StabilityBefore")
+                        .HasColumnType("double precision");
+
                     b.Property<Guid>("WordId")
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("WordId", "Exercise", "AnkiRevlogId")
+                        .IsUnique()
+                        .HasFilter("\"AnkiRevlogId\" IS NOT NULL");
 
                     b.HasIndex("WordId", "Exercise", "ReviewedAt");
 
@@ -92,6 +114,9 @@ namespace AnkiLearner.Infrastructure.Data.Migrations
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<double?>("Difficulty")
+                        .HasColumnType("double precision");
 
                     b.Property<DateTime>("Due")
                         .HasColumnType("timestamp with time zone");
@@ -115,6 +140,15 @@ namespace AnkiLearner.Infrastructure.Data.Migrations
 
                     b.Property<int>("Repetitions")
                         .HasColumnType("integer");
+
+                    b.Property<double?>("Stability")
+                        .HasColumnType("double precision");
+
+                    b.Property<uint>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("xid")
+                        .HasColumnName("xmin");
 
                     b.Property<Guid>("WordId")
                         .HasColumnType("uuid");
@@ -161,6 +195,12 @@ namespace AnkiLearner.Infrastructure.Data.Migrations
 
                     b.Property<int>("DailyNewLimit")
                         .HasColumnType("integer");
+
+                    b.Property<double>("DesiredRetention")
+                        .HasColumnType("double precision");
+
+                    b.PrimitiveCollection<double[]>("FsrsWeights")
+                        .HasColumnType("double precision[]");
 
                     b.PrimitiveCollection<List<string>>("KnownLanguages")
                         .IsRequired()

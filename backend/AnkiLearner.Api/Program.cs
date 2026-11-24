@@ -75,6 +75,9 @@ builder.Services.AddScoped<ApiTokenService>();
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<ICurrentUser, CurrentUser>();
 builder.Services.AddScoped<AnkiLearner.Api.Services.SettingsService>();
+builder.Services.AddScoped<AnkiLearner.Api.Services.FsrsInitializer>();
+// Sets up FSRS memory for pre-FSRS states after startup, off the startup path (spec §5).
+builder.Services.AddHostedService<AnkiLearner.Api.Services.FsrsSetupOnStartup>();
 builder.Services.AddSingleton<IContentSanitizer, AnkiLearner.Infrastructure.ContentSanitizer>();
 
 // --- AI word lookup (server-level key; degrades gracefully without one) ---

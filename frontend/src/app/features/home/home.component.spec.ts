@@ -19,7 +19,7 @@ describe('HomeComponent', () => {
       learningLanguage: 'da',
       knownLanguages: ['en', 'uk'],
       dailyNewLimit: 20,
-      maxIntervalDays: 36500,
+      maxIntervalDays: 36500, desiredRetention: 0.9, fsrsWeights: null,
     });
   });
 

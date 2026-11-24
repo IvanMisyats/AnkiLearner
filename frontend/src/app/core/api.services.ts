@@ -4,6 +4,7 @@ import { Observable } from 'rxjs';
 import {
   DuplicateCheckResponse,
   ExerciseType,
+  ImportCommitRequest,
   ImportCommitResponse,
   ImportPreviewResponse,
   Language,
@@ -12,6 +13,7 @@ import {
   ReviewGrade,
   SaveWordRequest,
   SettingsDto,
+  UpdateSettingsRequest,
   StudyCountsDto,
   StudyNextResponse,
   TagDto,
@@ -98,7 +100,7 @@ export class SettingsApi {
     return this.http.get<SettingsDto>('/api/settings');
   }
 
-  update(settings: SettingsDto): Observable<SettingsDto> {
+  update(settings: UpdateSettingsRequest): Observable<SettingsDto> {
     return this.http.put<SettingsDto>('/api/settings', settings);
   }
 
@@ -140,9 +142,8 @@ export class ImportApi {
     return this.http.post<ImportPreviewResponse>('/api/import/apkg', form);
   }
 
-  commit(importId: string, importDuplicates: boolean, importProgress: boolean): Observable<ImportCommitResponse> {
-    return this.http.post<ImportCommitResponse>(
-      `/api/import/apkg/${importId}/commit`, { importDuplicates, importProgress });
+  commit(importId: string, request: ImportCommitRequest): Observable<ImportCommitResponse> {
+    return this.http.post<ImportCommitResponse>(`/api/import/apkg/${importId}/commit`, request);
   }
 }
 

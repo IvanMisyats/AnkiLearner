@@ -8,7 +8,7 @@ The app's PostgreSQL database is the single source of truth; Anki is only an imp
 
 ## Status
 
-**v1 feature-complete** (spec phases 0–8): auth, dictionary, AI lookup, SM-2 study, and
+**v1 feature-complete** (spec phases 0–8): auth, dictionary, AI lookup, FSRS study, and
 `.apkg` import are implemented and tested. Production packaging/CI/CD (phase 9) is deferred.
 This repo is the production rewrite of an earlier proof-of-concept
 (`C:\Projects\DanishLearner`, Razor Pages + SQLite).
@@ -25,7 +25,7 @@ This repo is the production rewrite of an earlier proof-of-concept
 
 Multi-user accounts · personal dictionary (CRUD, tags, search) · add words manually or via AI
 lookup (meanings, IPA, part of speech, gender, example) · AnkiDroid `.apkg` import including
-study progress · SM-2 spaced repetition in both directions with inline correction · responsive
+study progress and review history · FSRS-6 spaced repetition (per-user retention and fitted weights) in both directions with inline correction · responsive
 UI (study from a phone browser) · Translate mode: translate a word, phrase or sentence and add
 the AI-picked words to your dictionary in one tap · installable Android app (PWA) with Translate /
 Learn shortcuts that accepts text shared from other apps.

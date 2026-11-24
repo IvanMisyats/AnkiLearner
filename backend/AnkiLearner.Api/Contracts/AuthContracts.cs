@@ -15,7 +15,14 @@ public record LoginRequest(
 public record UserDto(Guid Id, string Email);
 
 public record SettingsDto(
-    string LearningLanguage, List<string> KnownLanguages, int DailyNewLimit, int MaxIntervalDays);
+    string LearningLanguage, List<string> KnownLanguages, int DailyNewLimit, int MaxIntervalDays,
+    double DesiredRetention,
+    double[]? FsrsWeights) // null = the defaults
+{
+    public static SettingsDto From(Core.Entities.UserSettings s) =>
+        new(s.LearningLanguage, s.KnownLanguages, s.DailyNewLimit, s.MaxIntervalDays,
+            s.DesiredRetention, s.FsrsWeights);
+}
 
 public record AuthResponse(string AccessToken, UserDto User);
 

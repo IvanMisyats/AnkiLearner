@@ -56,10 +56,11 @@ public static class ApkgParser
         var created = DateTimeOffset.FromUnixTimeSeconds(QueryLong(connection, "SELECT crt FROM col LIMIT 1"))
             .UtcDateTime;
         var decks = ReadDecks(connection);
-        var cardsByNote = ReadCards(connection);
+        var skipped = new List<string>();
+        var reviewsByCard = ReadReviews(connection, skipped);
+        var cardsByNote = ReadCards(connection, reviewsByCard);
 
         var notes = new List<ApkgNote>();
-        var skipped = new List<string>();
 
         using var command = connection.CreateCommand();
         command.CommandText = "SELECT id, flds, tags FROM notes";
@@ -109,11 +110,13 @@ public static class ApkgParser
         return decks;
     }
 
-    private static Dictionary<long, List<(long DeckId, ApkgCard Card)>> ReadCards(SqliteConnection connection)
+    private static Dictionary<long, List<(long DeckId, ApkgCard Card)>> ReadCards(
+        SqliteConnection connection, Dictionary<long, List<ApkgReview>> reviewsByCard)
     {
         var byNote = new Dictionary<long, List<(long, ApkgCard)>>();
+        var withReviews = new HashSet<long>(); // a crafted file may repeat a card id
         using var command = connection.CreateCommand();
-        command.CommandText = "SELECT nid, did, ord, type, queue, due, ivl, factor, reps, lapses FROM cards";
+        command.CommandText = "SELECT nid, did, ord, type, queue, due, ivl, factor, reps, lapses, id FROM cards";
         using var reader = command.ExecuteReader();
         while (reader.Read())
         {
@@ -126,12 +129,96 @@ public static class ApkgParser
                 IntervalDays: reader.GetInt32(6),
                 EaseFactor: reader.GetInt32(7),
                 Reps: reader.GetInt32(8),
-                Lapses: reader.GetInt32(9));
+                Lapses: reader.GetInt32(9))
+            {
+                Reviews = withReviews.Add(reader.GetInt64(10))
+                    ? reviewsByCard.GetValueOrDefault(reader.GetInt64(10), [])
+                    : [],
+            };
             if (!byNote.TryGetValue(noteId, out var list))
                 byNote[noteId] = list = [];
             list.Add((reader.GetInt64(1), card));
         }
         return byNote;
+    }
+
+    /// <summary>Cap on imported review history — guards memory (a parsed upload is staged for 30 minutes).</summary>
+    private const long MaxReviews = 500_000;
+
+    /// <summary>No real review predates Anki (2006); later than tomorrow is not a real review either.</summary>
+    private static readonly long FirstPossibleReviewMs =
+        new DateTimeOffset(2006, 1, 1, 0, 0, 0, TimeSpan.Zero).ToUnixTimeMilliseconds();
+
+    /// <summary>
+    /// Graded reviews per card id, oldest first (spec FR-I9), as Anki's own FSRS reads them: rows
+    /// with a button press (ease 1–4) of types learning, review, relearning and filtered deck;
+    /// an Anki "Forget" (a manual row with factor 0) wipes the card's earlier reviews; a
+    /// filtered-deck row that didn't reschedule (factor 0) is skipped. The file is untrusted:
+    /// impossible dates and duplicate ids are dropped, and a revlog that is too big or can't be
+    /// read is left out (with a note) instead of failing the whole import. A package exported
+    /// without scheduling has no `revlog` table at all.
+    /// </summary>
+    private static Dictionary<long, List<ApkgReview>> ReadReviews(SqliteConnection connection, List<string> skipped)
+    {
+        var byCard = new Dictionary<long, List<ApkgReview>>();
+        if (QueryLong(connection, "SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = 'revlog'") == 0)
+            return byCard;
+        try
+        {
+            var total = QueryLong(connection, "SELECT count(*) FROM revlog");
+            if (total > MaxReviews)
+            {
+                skipped.Add($"Review history: {total} reviews is over the limit of {MaxReviews}, so it was left out.");
+                return byCard;
+            }
+
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                SELECT id, cid, ease, ivl, lastIvl, factor, type FROM revlog
+                WHERE id BETWEEN $first AND $last
+                ORDER BY id
+                """;
+            command.Parameters.AddWithValue("$first", FirstPossibleReviewMs);
+            command.Parameters.AddWithValue("$last", DateTimeOffset.UtcNow.AddDays(1).ToUnixTimeMilliseconds());
+            using var reader = command.ExecuteReader();
+            var seen = new HashSet<long>();
+            while (reader.Read())
+            {
+                var id = reader.GetInt64(0);
+                if (!seen.Add(id)) continue; // ids are unique in a real revlog
+                var cardId = reader.GetInt64(1);
+                var ease = reader.GetInt32(2);
+                var factor = reader.GetInt32(5);
+                var type = reader.GetInt32(6);
+
+                // "Forget"/"Reset" (Anki 26: type 4, ease 0, factor 0 — its FSRS then treats the
+                // card as new). "Set due date" is type 4 too, but keeps the factor: not a reset.
+                if (type == 4 && factor == 0)
+                {
+                    if (byCard.TryGetValue(cardId, out var wiped)) wiped.Clear();
+                    continue;
+                }
+                if (ease is < 1 or > 4 || type is < 0 or > 3) continue;
+                if (type == 3 && factor == 0) continue; // filtered deck without rescheduling
+
+                if (!byCard.TryGetValue(cardId, out var list))
+                    byCard[cardId] = list = [];
+                list.Add(new ApkgReview(
+                    Id: id,
+                    Ease: ease,
+                    IntervalDays: reader.GetInt32(3),
+                    LastIntervalDays: reader.GetInt32(4),
+                    Factor: factor,
+                    Type: type));
+            }
+        }
+        catch (Exception e) when (e is SqliteException or InvalidCastException or InvalidOperationException
+                                       or OverflowException or FormatException)
+        {
+            skipped.Add("Review history could not be read, so it was left out.");
+            byCard.Clear();
+        }
+        return byCard;
     }
 
     private static long QueryLong(SqliteConnection connection, string sql)

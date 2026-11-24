@@ -16,7 +16,7 @@ const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 
 const user = { id: 'u1', email: 'a@example.test' };
 const settings = {
-  learningLanguage: 'da', knownLanguages: ['en'], dailyNewLimit: 20, maxIntervalDays: 36500,
+  learningLanguage: 'da', knownLanguages: ['en'], dailyNewLimit: 20, maxIntervalDays: 36500, desiredRetention: 0.9, fsrsWeights: null,
 };
 
 describe('LoginComponent — returnUrl', () => {

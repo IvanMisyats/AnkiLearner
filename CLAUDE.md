@@ -41,13 +41,13 @@ hosted). Reuse the POC's **domain logic and research**, not its delivery mechani
 | 5 | API key | **Server-level key** (operator-provided env/config); AI degrades gracefully if absent |
 | 6 | Text format | **Sanitized HTML** for word/translation content (round-trips with Anki) |
 | 7 | Organization | **Tags + study-all** (flat dictionary, free-form tags, filter studies by tag) |
-| 8 | SRS | **SM-2** for v1 + Anki's hard-factor/easy-bonus grade modifiers and a per-user max interval (FSRS is a future option) |
+| 8 | SRS | **FSRS-6** since 2026-11-24 (ADR-0013; py-fsrs port, per-user retention + weights, max interval). v1 shipped SM-2 |
 | 9 | Backend | **.NET 10 Web API** (controllers), EF Core, layered projects |
 | 10 | Frontend | **Angular** (latest stable, standalone components + signals) + Angular Material. Re-confirmed 2026-07-02 over Blazor — but see the frontend-clarity convention below |
 | 11 | Database | **PostgreSQL** |
 | 12 | Packaging | **Docker** (multi-container via compose) |
 | 13 | CI/CD + reverse proxy | Deferred in v1; since done: GitHub Actions → GHCR → VPS, host nginx + Cloudflare (ADR-0002) |
-| 14 | Anki progress | **Import scheduling state** from `.apkg` (best-effort map of interval/ease/due → SM-2; optional at commit, default on) |
+| 14 | Anki progress | **Import scheduling state** from `.apkg` (map to SM-2 fields, then FSRS setup) **+ review history** (`revlog` → review log; "history only" re-upload) |
 | 15 | Study model | **Combined directions**: `TargetToKnown` shows all known-language translations together; per-language directions deferred |
 | 16 | Auth scope | **Minimal v1**: register/login/logout + JWT/refresh; no email verification, no password-reset email |
 | 17 | Script access | **Personal access tokens** (`ankl_` prefix) as a second auth scheme; full-account scope, managed only by a password login. No scopes, no management UI. |
@@ -99,8 +99,9 @@ AnkiLearner/                  # repo root
 - **WordTranslation**: per known language `{ LanguageCode, Text (HTML), ExampleTranslation }`;
   unique per `(WordId, LanguageCode)`.
 - **Tag** (per user) ── M:N ── **Word** (via `WordTag`).
-- **SrsState**: SM-2 state per `(WordId, Exercise)`; exercises `TargetToKnown`, `KnownToTarget`
-  (typing/anagram later). Studied directions share the word but track progress independently.
+- **SrsState**: FSRS memory (Stability, Difficulty) + schedule per `(WordId, Exercise)`; exercises
+  `TargetToKnown`, `KnownToTarget` (typing/anagram later). Studied directions share the word but
+  track progress independently. `EaseFactor`/`Repetitions` are legacy SM-2 inputs for FSRS setup.
 - **ReviewLogEntry** (table `ReviewLog`): append-only history, one row per grade / relearn / reset
   per direction, with the state before and after. `SrsState` is only the latest snapshot.
 
@@ -130,7 +131,7 @@ AnkiLearner/                  # repo root
 AnkiDroid export (947 notes → 944 words + 1424 SRS states). Phase 9 (Docker images,
 CI/CD, reverse proxy) is done and deployed to `anki.misyats.com`.
 
-**Grade-aware intervals** (2026-09-06): textbook SM-2 gave Hard/Good/Easy the same next
+**Grade-aware intervals** (2026-09-06, superseded by FSRS below): textbook SM-2 gave Hard/Good/Easy the same next
 interval (they only diverged a review later, via ease), so all three button hints read alike.
 `Sm2.Apply` now keeps the SM-2 ladder as the Good baseline and layers on Anki's hard factor
 (1.2), easy bonus (1.3) and easy interval (4 d), capped by `UserSettings.MaxIntervalDays`
@@ -163,7 +164,15 @@ config-hash drift check, ADR-0011), so a new model needs no code change. See Ope
 `infra/README.md`.
 
 **Review log** (2026-11-24): every grade, Study again and reset appends a row to `ReviewLog`
-(FR-R11, ADR-0012): the history the planned FSRS scheduler will be fitted to and replayed over.
+(FR-R11, ADR-0012): the history FSRS is fitted to and replayed over.
+
+**FSRS-6 scheduler** (2026-11-24): replaces SM-2 (spec §5, ADR-0013). Engine `Core/Srs/Fsrs.cs`
+(py-fsrs 6.3.3 port, calendar days like Anki, tests pinned to Anki's own memory states);
+pre-FSRS cards are set up from Anki history / the SM-2 snapshot and rescheduled
+(`FsrsInitializer`, after startup and on import / settings change); `.apkg` import can bring the
+`revlog` ("history only" for an existing dictionary); new words come before a backlog, due cards
+highest-recall first. Settings: desired retention + pasted weights (fit them with Anki's
+optimizer, also headless via the `anki` pip package). Plan / design record: `docs/FSRS_PLAN.md`.
 
 ## How to run
 

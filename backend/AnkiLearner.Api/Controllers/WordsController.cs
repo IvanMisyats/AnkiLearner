@@ -18,7 +18,8 @@ public class WordsController(
     AppDbContext db,
     ICurrentUser currentUser,
     SettingsService settingsService,
-    IContentSanitizer sanitizer) : ControllerBase
+    IContentSanitizer sanitizer,
+    FsrsInitializer fsrsInitializer) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<PagedResponse<WordDto>>> List(
@@ -185,13 +186,16 @@ public class WordsController(
         if (!owned) return NotFound();
 
         var now = DateTime.UtcNow;
+        var p = (await settingsService.GetOrCreateAsync(currentUser.UserId, ct)).SchedulerParameters();
         var states = await db.SrsStates.Where(s => s.WordId == id).ToListAsync(ct);
         // A missing direction gets a state due now; created today, it counts toward the
         // daily-new allowance (FR-R7).
         foreach (var exercise in Enum.GetValues<ExerciseType>())
         {
             var state = states.FirstOrDefault(s => s.Exercise == exercise);
-            var before = state is null ? null : SrsSnapshot.Of(state);
+            var card = state is null ? null : await fsrsInitializer.CurrentMemoryAsync(state, p, ct);
+            var before = state is null ? null : SrsSnapshot.Of(state).WithMemory(card);
+            double? retrievability = null;
             if (state is null)
             {
                 state = new SrsState { WordId = id, Exercise = exercise, Due = now, CreatedAt = now };
@@ -199,13 +203,36 @@ public class WordsController(
             }
             else
             {
-                Sm2.Relearn(state, now);
+                // Forgotten: Stability drops as for Again, Difficulty stays (no penalty), and the
+                // review right after is a same-day one. A never-reviewed card has no memory to
+                // drop, and nothing to count as a lapse.
+                if (card is { } c)
+                {
+                    var elapsed = Fsrs.ElapsedDays(c.LastReviewed, now);
+                    retrievability = Fsrs.Retrievability(c.Memory, elapsed, p.Weights);
+                    var memory = Fsrs.Forget(c.Memory, elapsed, p.Weights);
+                    state.Stability = memory.Stability;
+                    state.Difficulty = memory.Difficulty;
+                    state.LastReviewed = now;
+                    // Already in an Again repeat (interval 0) = the same forgetting, not a new lapse.
+                    if (state.IntervalDays > 0) state.Lapses += 1;
+                }
+                state.IntervalDays = 0;
+                if (state.Due > now) state.Due = now; // an overdue card keeps its place
             }
             // "I forgot this word" is history too (FR-R11).
             db.ReviewLog.Add(ReviewLogEntry.Create(
-                id, exercise, ReviewKind.Relearn, grade: null, now, before, state));
+                id, exercise, ReviewKind.Relearn, grade: null, now, before, state, retrievability));
         }
-        await db.SaveChangesAsync(ct);
+        try
+        {
+            await db.SaveChangesAsync(ct);
+        }
+        catch (Exception e) when (e is DbUpdateConcurrencyException || DbErrors.IsUniqueViolation(e))
+        {
+            return Problem(statusCode: StatusCodes.Status409Conflict,
+                title: "This word was just updated elsewhere. Try again.");
+        }
         return NoContent();
     }
 

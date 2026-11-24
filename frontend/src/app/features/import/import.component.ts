@@ -53,6 +53,9 @@ import { NotifyService } from '../../core/notify.service';
               <li><strong>{{ p.new }}</strong> new words</li>
               <li><strong>{{ p.duplicates }}</strong> already in your dictionary</li>
               <li><strong>{{ p.withProgress }}</strong> with study progress to carry over</li>
+              @if (p.existingWithHistory > 0) {
+                <li><strong>{{ p.existingWithHistory }}</strong> of your existing words have Anki review history</li>
+              }
               @if (p.skipped.length > 0) {
                 <li><strong>{{ p.skipped.length }}</strong> skipped (malformed)</li>
               }
@@ -70,18 +73,36 @@ import { NotifyService } from '../../core/notify.service';
             <mat-checkbox [(ngModel)]="importProgress">
               Carry over study progress (intervals are transferred approximately)
             </mat-checkbox>
+            <!-- One-way [ngModel] + (ngModelChange) instead of [(ngModel)]: shown unticked while
+                 progress is off, because no history is imported then. -->
+            <mat-checkbox [ngModel]="importProgress && importHistory" (ngModelChange)="importHistory = $event"
+                          [disabled]="!importProgress">
+              Include the review history, so scheduling starts from it
+            </mat-checkbox>
             <mat-checkbox [(ngModel)]="importDuplicates">
               Also import the {{ p.duplicates }} duplicates
             </mat-checkbox>
+            @if (p.existingWithHistory > 0) {
+              <p class="history-only">
+                Already imported these words? <strong>History only</strong> adds no words: it gives
+                the words in your dictionary their Anki review history and restarts their
+                scheduling from it. The options above don't apply to it.
+              </p>
+            }
           </mat-card-content>
           <mat-card-actions>
-            <button mat-flat-button (click)="commit()" [disabled]="committing()">
+            <button mat-flat-button (click)="commit(false)" [disabled]="committing()">
               @if (committing()) {
                 <mat-spinner diameter="20" />
               } @else {
                 Import
               }
             </button>
+            @if (p.existingWithHistory > 0) {
+              <button mat-stroked-button (click)="commit(true)" [disabled]="committing()">
+                History only
+              </button>
+            }
             <button mat-button (click)="reset()">Cancel</button>
           </mat-card-actions>
         </mat-card>
@@ -95,6 +116,9 @@ import { NotifyService } from '../../core/notify.service';
             <p>
               {{ r.imported }} words imported,
               {{ r.statesImported }} study states carried over.
+              @if (r.historyCards > 0) {
+                <br />{{ r.historyCards }} cards got their review history ({{ r.historyReviews }} reviews).
+              }
             </p>
             <div class="result-actions">
               <a mat-flat-button routerLink="/words">Open dictionary</a>
@@ -111,6 +135,7 @@ import { NotifyService } from '../../core/notify.service';
     h1 { font-size: 22px; font-weight: 500; }
     .summary { padding-left: 20px; }
     mat-checkbox { display: block; margin-top: 4px; }
+    .history-only { color: var(--mat-sys-on-surface-variant); font-size: 13px; margin: 12px 0 0; }
     mat-card-actions { padding: 0 16px 16px; gap: 8px; }
     details { margin-bottom: 12px; color: var(--mat-sys-on-surface-variant); }
     .result { text-align: center; padding: 16px; }
@@ -128,6 +153,7 @@ export class ImportComponent {
   readonly committing = signal(false);
 
   importProgress = true;
+  importHistory = true;
   importDuplicates = false;
 
   async onFileSelected(event: Event): Promise<void> {
@@ -146,17 +172,25 @@ export class ImportComponent {
     }
   }
 
-  async commit(): Promise<void> {
+  /** historyOnly = the "History only" button: add no words, attach history to existing ones. */
+  async commit(historyOnly: boolean): Promise<void> {
     const preview = this.preview();
     if (!preview) return;
     this.committing.set(true);
     try {
       this.result.set(await firstValueFrom(
-        this.importApi.commit(preview.importId, this.importDuplicates, this.importProgress),
+        this.importApi.commit(preview.importId, {
+          importDuplicates: this.importDuplicates,
+          importProgress: this.importProgress,
+          importHistory: this.importProgress && this.importHistory,
+          historyOnly,
+        }),
       ));
       this.preview.set(null);
     } catch (error) {
-      this.notify.httpError(error, 'Import failed — nothing was saved.');
+      // The server used up this upload when the commit started, so a retry needs the file again.
+      this.notify.httpError(error, 'Import failed — nothing was saved. Upload the file again.');
+      this.reset();
     } finally {
       this.committing.set(false);
     }
@@ -167,5 +201,6 @@ export class ImportComponent {
     this.result.set(null);
     this.importDuplicates = false;
     this.importProgress = true;
+    this.importHistory = true;
   }
 }

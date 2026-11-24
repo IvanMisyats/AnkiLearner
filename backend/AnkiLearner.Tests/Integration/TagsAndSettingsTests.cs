@@ -93,7 +93,7 @@ public class TagsAndSettingsTests(ApiFactory factory) : IClassFixture<ApiFactory
         var client = await factory.CreateAuthenticatedClientAsync();
 
         var initial = await (await client.GetAsync("/api/settings")).ReadAsAsync<SettingsDto>();
-        Assert.Equal(Sm2.DefaultMaxIntervalDays, initial.MaxIntervalDays);
+        Assert.Equal(Fsrs.DefaultMaxIntervalDays, initial.MaxIntervalDays);
 
         await client.PutAsJsonAsync("/api/settings",
             new { learningLanguage = "da", knownLanguages = new[] { "en" }, dailyNewLimit = 5, maxIntervalDays = 90 });
@@ -104,6 +104,94 @@ public class TagsAndSettingsTests(ApiFactory factory) : IClassFixture<ApiFactory
             .ReadAsAsync<SettingsDto>();
         Assert.Equal(7, afterOmitted.DailyNewLimit);
         Assert.Equal(90, afterOmitted.MaxIntervalDays);
+    }
+
+    [Fact]
+    public async Task Settings_FsrsRetentionAndWeights_DefaultSetAndReset()
+    {
+        var client = await factory.CreateAuthenticatedClientAsync();
+
+        var initial = await (await client.GetAsync("/api/settings")).ReadAsAsync<SettingsDto>();
+        Assert.Equal(Fsrs.DefaultDesiredRetention, initial.DesiredRetention);
+        Assert.Null(initial.FsrsWeights); // null = the defaults
+
+        var weights = Fsrs.DefaultWeights.Select(w => Math.Round(w * 1.05, 4)).ToArray();
+        weights[7] = 0.1; // keep every value inside its bounds
+        var updated = await (await client.PutAsJsonAsync("/api/settings", new
+            {
+                learningLanguage = "da", knownLanguages = new[] { "en" }, dailyNewLimit = 20,
+                desiredRetention = 0.85, fsrsWeights = weights,
+            }))
+            .ReadAsAsync<SettingsDto>();
+        Assert.Equal(0.85, updated.DesiredRetention);
+        Assert.Equal(weights, updated.FsrsWeights);
+
+        // Omitted fields stay as they are.
+        var omitted = await (await client.PutAsJsonAsync("/api/settings",
+                new { learningLanguage = "da", knownLanguages = new[] { "en" }, dailyNewLimit = 15 }))
+            .ReadAsAsync<SettingsDto>();
+        Assert.Equal(0.85, omitted.DesiredRetention);
+        Assert.Equal(weights, omitted.FsrsWeights);
+
+        // An empty list goes back to the defaults.
+        var reset = await (await client.PutAsJsonAsync("/api/settings", new
+            {
+                learningLanguage = "da", knownLanguages = new[] { "en" }, dailyNewLimit = 15,
+                fsrsWeights = Array.Empty<double>(),
+            }))
+            .ReadAsAsync<SettingsDto>();
+        Assert.Null(reset.FsrsWeights);
+
+        var fetched = await (await client.GetAsync("/api/auth/me")).ReadAsAsync<MeResponse>();
+        Assert.Equal(0.85, fetched.Settings.DesiredRetention);
+        Assert.Null(fetched.Settings.FsrsWeights);
+    }
+
+    [Theory]
+    [InlineData(0.5)]
+    [InlineData(0.99)]
+    public async Task Settings_RejectsRetentionOutOfRange(double retention)
+    {
+        var client = await factory.CreateAuthenticatedClientAsync();
+        var response = await client.PutAsJsonAsync("/api/settings", new
+        {
+            learningLanguage = "da", knownLanguages = new[] { "en" }, dailyNewLimit = 20,
+            desiredRetention = retention,
+        });
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Settings_RejectsInvalidWeights_AndKeepsTheOldOnes()
+    {
+        var client = await factory.CreateAuthenticatedClientAsync();
+        var saved = Fsrs.DefaultWeights.Select(w => Math.Round(w * 1.05, 4)).ToArray();
+        saved[7] = 0.1;
+        (await client.PutAsJsonAsync("/api/settings", new
+        {
+            learningLanguage = "da", knownLanguages = new[] { "en" }, dailyNewLimit = 20,
+            fsrsWeights = saved,
+        })).EnsureSuccessStatusCode();
+
+        var tooFew = await client.PutAsJsonAsync("/api/settings", new
+        {
+            learningLanguage = "da", knownLanguages = new[] { "en" }, dailyNewLimit = 20,
+            fsrsWeights = Fsrs.DefaultWeights.Take(19).ToArray(),
+        });
+        Assert.Equal(HttpStatusCode.BadRequest, tooFew.StatusCode);
+        Assert.Contains("Expected 21 FSRS weights, got 19.", await tooFew.Content.ReadAsStringAsync());
+
+        var outOfBounds = Fsrs.DefaultWeights.ToArray();
+        outOfBounds[20] = 5; // decay must be ≤ 0.8
+        var bad = await client.PutAsJsonAsync("/api/settings", new
+        {
+            learningLanguage = "da", knownLanguages = new[] { "en" }, dailyNewLimit = 20,
+            fsrsWeights = outOfBounds,
+        });
+        Assert.Equal(HttpStatusCode.BadRequest, bad.StatusCode);
+
+        var fetched = await (await client.GetAsync("/api/settings")).ReadAsAsync<SettingsDto>();
+        Assert.Equal(saved, fetched.FsrsWeights);
     }
 
     [Fact]

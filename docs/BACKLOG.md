@@ -19,12 +19,7 @@
 ### Import duplicate detection is still exact-match
 - **Found:** 2026-11-15, Translate mode Phase 1a.
 - **Symptom:** the Anki importer compares `TermNormalized` exactly. Importing a deck with "aftale" when the dictionary has "en aftale" (or the reverse) creates a duplicate. The add-word form and Translate already ignore a leading article.
-- **Fix idea:** use `TermNormalizer.MatchCandidates` in `ImportController`'s duplicate check, preferring an exact match like `WordsController.CheckDuplicate`.
-
-### Two simultaneous first reviews of a direction return 500
-- **Found:** 2026-11-15, Translate mode Phase 1a review.
-- **Symptom:** a relearn racing another relearn or a first grade on a never-studied direction can return a 500. So can two grades of one new card, or a relearn racing a reset. The unique index on `(WordId, Exercise)` rejects the second insert. The final state is correct. The UI disables its buttons while a request runs, so this needs two tabs or devices. Related: two simultaneous grades of an *existing* state don't fail but lose an update (last writer wins, no concurrency token on `SrsState`), and both review-log rows (ADR-0012) carry the same before-state.
-- **Fix idea:** catch the unique-violation `DbUpdateException` in `StudyController.Grade` / `WordsController.Relearn` and retry once (reload the state and apply), or return 409.
+- **Fix idea:** use `TermNormalizer.MatchCandidates` in `ImportController`'s duplicate check, preferring an exact match like `WordsController.CheckDuplicate`. The "History only" matching (FR-I9) is exact too: a word edited to its citation form since the import ("aftale" → "en aftale") gets no history.
 
 ### Word-form Notes field shows raw HTML
 - **Found:** 2026-11-16, Translate mode end-to-end check.
@@ -41,10 +36,10 @@
 - **Symptom:** screens narrower than 320 CSS px (e.g. a folded Galaxy Fold at 280 px) scroll sideways by about 16 px. 320 px and up is fine.
 - **Fix idea:** under 320 px, shrink the nav gaps or hide Settings behind a menu.
 
-### Lapses counted twice for one forgetting
-- **Found:** 2026-11-15, Translate mode Phase 1a review.
-- **Symptom:** grading Again and then pressing Study again (or double-tapping Study again) adds two lapses. Cosmetic: `Lapses` doesn't affect scheduling and isn't shown.
-- **Fix idea:** skip `Lapses += 1` in `Sm2.Relearn` when the state is already due now with 0 repetitions.
+### FSRS days start at UTC midnight, not at the user's local 04:00
+- **Found:** 2026-11-24, FSRS Phase 2 review.
+- **Symptom:** FSRS counts elapsed time in calendar days (as Anki does), but splits them at UTC midnight, the app's day everywhere (FR-R1, FR-R7). Anki splits at 04:00 local time. For a European user the two hardly ever split a session differently. For a user in UTC−5, two reviews at 18:50 and 19:10 local fall on different UTC days, so the second one gets the long-term formula: a 20-minute gap counts as a day and Stability jumps.
+- **Fix idea:** a per-user day start (time zone + rollover hour, e.g. sent by the browser) used by `Fsrs.ElapsedDays` and the daily counters alike.
 
 ## Follow-ups (improvements, not defects)
 - **Word form → Translate:** saving a word opened from a Translate card returns to `/words`, not back to Translate. A validated `returnTo` query param would do it.

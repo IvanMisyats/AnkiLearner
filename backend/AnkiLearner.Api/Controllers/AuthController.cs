@@ -109,9 +109,7 @@ public class AuthController(
         var settings = await settingsService.GetOrCreateAsync(user.Id, ct);
         return new MeResponse(
             new UserDto(user.Id, user.Email!),
-            new SettingsDto(
-                settings.LearningLanguage, settings.KnownLanguages,
-                settings.DailyNewLimit, settings.MaxIntervalDays));
+            SettingsDto.From(settings));
     }
 
     private async Task<AuthResponse> SignInAsync(AppUser user, CancellationToken ct)

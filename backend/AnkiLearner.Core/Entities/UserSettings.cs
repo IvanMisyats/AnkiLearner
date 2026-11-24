@@ -1,3 +1,5 @@
+using AnkiLearner.Core.Srs;
+
 namespace AnkiLearner.Core.Entities;
 
 /// <summary>Per-user preferences. Created with defaults at registration (spec §3.2).</summary>
@@ -15,7 +17,18 @@ public class UserSettings
     public int DailyNewLimit { get; set; } = 20;
 
     /// <summary>Ceiling on the SRS interval, in days. Caps runaway intervals on mature cards.</summary>
-    public int MaxIntervalDays { get; set; } = Srs.Sm2.DefaultMaxIntervalDays;
+    public int MaxIntervalDays { get; set; } = Fsrs.DefaultMaxIntervalDays;
+
+    /// <summary>Target probability of recalling a card when it comes due (FSRS). Lower = fewer
+    /// reviews, more forgetting.</summary>
+    public double DesiredRetention { get; set; } = Fsrs.DefaultDesiredRetention;
+
+    /// <summary>The user's own 21 FSRS weights (e.g. fitted by Anki's optimizer); null = defaults.</summary>
+    public double[]? FsrsWeights { get; set; }
+
+    /// <summary>The scheduler settings these preferences describe.</summary>
+    public FsrsParameters SchedulerParameters() =>
+        new(FsrsWeights ?? Fsrs.DefaultWeights, DesiredRetention, MaxIntervalDays);
 
     public DateTime CreatedAt { get; set; }
     public DateTime UpdatedAt { get; set; }

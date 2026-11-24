@@ -94,6 +94,8 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
             e.HasIndex(s => new { s.WordId, s.Exercise }).IsUnique();
             // Study-next scans by exercise + due date.
             e.HasIndex(s => new { s.Exercise, s.Due });
+            // Maps to the xmin system column: optimistic concurrency, no extra column.
+            e.Property(s => s.Version).IsRowVersion();
             e.HasOne(s => s.Word).WithMany(w => w.SrsStates).HasForeignKey(s => s.WordId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
@@ -107,6 +109,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options)
             e.Property(r => r.Grade).HasConversion<string>().HasMaxLength(20);
             // A card's history, in order.
             e.HasIndex(r => new { r.WordId, r.Exercise, r.ReviewedAt });
+            // An Anki revlog row can be imported once per card (re-uploads and retries).
+            e.HasIndex(r => new { r.WordId, r.Exercise, r.AnkiRevlogId }).IsUnique()
+                .HasFilter("\"AnkiRevlogId\" IS NOT NULL");
             // Deleting a word deletes its history; a reset keeps it (FR-R11).
             e.HasOne(r => r.Word).WithMany().HasForeignKey(r => r.WordId)
                 .OnDelete(DeleteBehavior.Cascade);

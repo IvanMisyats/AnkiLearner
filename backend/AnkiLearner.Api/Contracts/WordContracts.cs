@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using AnkiLearner.Core.Entities;
+using AnkiLearner.Core.Srs;
 
 namespace AnkiLearner.Api.Contracts;
 
@@ -44,4 +45,7 @@ public record UpdateSettingsRequest(
     [Required, MaxLength(20)] string LearningLanguage,
     [Required, MinLength(1)] List<string> KnownLanguages,
     [Range(0, 1000)] int DailyNewLimit,
-    [Range(1, 36500)] int? MaxIntervalDays = null);
+    [Range(1, 36500)] int? MaxIntervalDays = null,
+    [Range(Fsrs.MinDesiredRetention, Fsrs.MaxDesiredRetention)] double? DesiredRetention = null,
+    // null = unchanged, [] = back to the defaults, otherwise exactly 21 weights.
+    double[]? FsrsWeights = null);
