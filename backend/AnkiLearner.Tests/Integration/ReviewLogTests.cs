@@ -82,7 +82,7 @@ public class ReviewLogTests(ApiFactory factory) : IClassFixture<ApiFactory>
         Assert.All(relearns, r => Assert.Null(r.Grade));
 
         var studied = relearns.Single(r => r.Exercise == ExerciseType.TargetToKnown);
-        Assert.Equal(2, studied.IntervalBefore); // a new card's first Good: 2 d
+        Assert.Equal(0, studied.IntervalBefore); // a new card's first Good: the 10-minute learning step
         Assert.Equal(0, studied.IntervalAfter);
         Assert.NotNull(studied.PreviousReviewAt);
         // Forgotten: Stability drops, Difficulty is kept (no penalty).

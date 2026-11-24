@@ -201,15 +201,38 @@ public class FsrsTests
 
     // --- Review ---
 
-    [Fact]
-    public void Review_FirstGrade_HasNoRetrievability_AndUsesInitialMemory()
+    [Theory]
+    [InlineData(ReviewGrade.Hard)]
+    [InlineData(ReviewGrade.Good)]
+    public void Review_NewCardsFirstHardOrGood_IsALearningStep(ReviewGrade grade)
     {
-        var review = Fsrs.Review(null, ReviewGrade.Good, Now, FsrsParameters.Default, fuzzUnit: 0.5);
+        var review = Fsrs.Review(null, grade, Now, FsrsParameters.Default, fuzzUnit: 0.5);
 
         Assert.Null(review.Retrievability);
-        Assert.Equal(Fsrs.Initial(ReviewGrade.Good, Fsrs.DefaultWeights), review.Memory);
-        Assert.Equal(2, review.IntervalDays); // S 2.31 at 90% → 2 days, too short to fuzz
-        Assert.Equal(Now.AddDays(2), review.Due);
+        Assert.Equal(Fsrs.Initial(grade, Fsrs.DefaultWeights), review.Memory);
+        Assert.Equal(0, review.IntervalDays);
+        Assert.Equal(Now.AddMinutes(Fsrs.LearningStepMinutes), review.Due);
+    }
+
+    [Fact]
+    public void Review_NewCardsFirstEasy_SchedulesDays()
+    {
+        var review = Fsrs.Review(null, ReviewGrade.Easy, Now, FsrsParameters.Default, fuzzUnit: 0.0);
+
+        Assert.Equal(Fsrs.Initial(ReviewGrade.Easy, Fsrs.DefaultWeights), review.Memory);
+        Assert.Equal(Fsrs.Fuzz(8, 0.0, 36500), review.IntervalDays); // S 8.3 at 90% → 8 d, fuzzed
+    }
+
+    [Fact]
+    public void Review_TheLearningSteps_SameDayRepeat_SchedulesDays()
+    {
+        var step = Fsrs.Review(null, ReviewGrade.Good, Now, FsrsParameters.Default, fuzzUnit: 0.5);
+        var card = new FsrsCard(step.Memory, Now);
+
+        var repeat = Fsrs.Review(card, ReviewGrade.Good, Now.AddMinutes(12), FsrsParameters.Default, fuzzUnit: 0.5);
+
+        Assert.True(repeat.IntervalDays >= 2); // short-term formula: S grows a little; Good ≥ Hard + 1
+        Assert.Equal(1.0, repeat.Retrievability);
     }
 
     [Fact]

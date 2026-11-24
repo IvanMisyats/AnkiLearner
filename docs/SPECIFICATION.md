@@ -217,7 +217,7 @@ The add-word form is always usable manually; AI lookup pre-fills it.
 - **FR-R3** The review flow is AnkiDroid-style: show prompt → **"Show answer"** → reveal →
   four grade buttons **Again / Hard / Good / Easy**, each annotated with the resulting interval.
 - **FR-R4** Grading applies **FSRS** (§5) to that `(word, exercise)` SRS state and advances to the
-  next card. Card selection (§5.6): due **Again** repeats first; then **new** words, **newest
+  next card. Card selection (§5.6): due **in-session repeats** (Again, learning step) first; then **new** words, **newest
   first**, while a daily new limit allows, so a word met today comes up today even with a backlog;
   then due reviews, **highest predicted recall first**; with no daily limit, new words only after
   the due reviews; then learn-ahead (FR-R9); then nothing-due state.
@@ -228,8 +228,9 @@ The add-word form is always usable manually; AI lookup pre-fills it.
 - **FR-R8** A word with no SRS state for a direction is treated as **new** for that direction (state
   is created lazily on first grade, or by Relearn, FR-D8), exactly as in the POC.
 - **FR-R9** **Learn-ahead:** when nothing else is due and the daily new limit is exhausted, but
-  "Again" cards are scheduled within the next **20 minutes**, they are served early so a session
-  can be finished (Anki-style). Study counts include such cards.
+  in-session repeats (Again, a new card's learning step) are scheduled within the next
+  **20 minutes**, they are served early so a session can be finished (Anki-style). Study counts
+  include such cards.
 - **FR-R10** Study queries are scoped to the current learning language (FR-S7); the direction
   labels in the UI use the user's actual language names (e.g. "Danish → English/Ukrainian").
 - **FR-R11** **Review log:** every grade press (in-session repeats included), every Relearn and
@@ -390,7 +391,7 @@ FK (directly or transitively) and are filtered by it. Timestamps in UTC.
 | WordId | GUID FK | cascade delete |
 | Exercise | text | enum stored as string: `TargetToKnown`, `KnownToTarget`, (later `Typing`,`Anagram`) |
 | Due | timestamptz | next review |
-| IntervalDays | int | current interval (0 = in an Again repeat) |
+| IntervalDays | int | current interval (0 = in-session repeat: Again or a new card's learning step) |
 | Stability / Difficulty | double? | FSRS memory; null = new or not set up yet (§5.4) |
 | EaseFactor | double | legacy SM-2 (start 2.5, min 1.3); input for setup, no longer changed |
 | Repetitions | int | legacy SM-2 consecutive successes; input for setup, no longer changed |
@@ -411,7 +412,7 @@ FK (directly or transitively) and are filtered by it. Timestamps in UTC.
 | ReviewedAt | timestamptz | event time |
 | PreviousReviewAt | timestamptz? | the card's `LastReviewed` before the event |
 | IntervalBefore / EaseBefore / DueBefore | int? / double? / timestamptz? | null if no state existed |
-| IntervalAfter / EaseAfter / DueAfter | int? / double? / timestamptz? | null after a reset |
+| IntervalAfter / EaseAfter / DueAfter | int? / double? / timestamptz? | null after a reset; interval 0 = in-session repeat on the site (Anki learning rows have null) |
 | StabilityBefore/After, DifficultyBefore/After | double? | FSRS memory around the event |
 | Retrievability | double? | predicted recall at the event (FSRS) |
 | AnkiRevlogId | bigint? | Anki revlog id (epoch ms) of an imported row |
@@ -455,14 +456,20 @@ ranges. Code: `Core/Srs/Fsrs.cs` (pure engine), `Core/Srs/FsrsSetup.cs` and
 
 ### 5.2 Scheduling a grade
 
-- **Again** → due again in **10 minutes** (in-session repeat), `IntervalDays = 0`, `Lapses + 1`.
+- **Again** → due again in **10 minutes** (in-session repeat), `IntervalDays = 0`; a lapse
+  (`Lapses + 1`) only for a card that had a day interval.
+- **A new card's first Hard or Good** → due again in **10 minutes** too: one learning step
+  (ADR-0014). Its memory starts from that grade; the same-day review after it schedules days. A
+  new card's first Easy schedules days at once. So a new word is seen at least twice in its first
+  session.
 - **Hard / Good / Easy** → `interval = round(S/F · (r^(−1/w20) − 1))` for desired retention *r*
   (FR-S8), at least 1 day and at most `MaxIntervalDays`, then **fuzzed**, then kept in order:
   Good ≥ Hard + 1 day, Easy ≥ Good + 1 day (capped).
 - **Fuzz** (py-fsrs ranges, intervals ≥ 2.5 d) spreads the cards reviewed in one sitting. It is
   deterministic — seeded by word, exercise and the last review time — so a button's hint is exactly
   what that grade schedules (unless UTC midnight passes in between).
-- Button hints: Again "10 min"; otherwise "N d" (< 31 days), "N.N mo" (< 1 year), "N.N y".
+- Button hints: "10 min" for an in-session repeat (Again, a new card's Hard / Good); otherwise
+  "N d" (< 31 days), "N.N mo" (< 1 year), "N.N y".
 - The legacy SM-2 fields `EaseFactor` and `Repetitions` are no longer changed.
 - A grade that collides with a concurrent update of the same card (another device, a setup run)
   gets 409 and saves nothing (`SrsState` row version).
@@ -472,9 +479,11 @@ ranges. Code: `Core/Srs/Fsrs.cs` (pure engine), `Core/Srs/FsrsSetup.cs` and
 - Elapsed time counts **calendar days**, as Anki does (Anki's optimizer fits weights that way).
   Days start at **UTC midnight**, the app's day everywhere; Anki starts them at 04:00 local. For
   European users the two hardly ever split a session differently; elsewhere they can (BACKLOG).
-- **No learning steps**: Again always means 10 minutes; any passing grade, a new card's first
-  included, schedules a day interval.
-- Passing intervals are kept in order (Anki's rule), so the three buttons never read alike.
+- **One learning step** where py-fsrs (and Anki) default to two (1 and 10 minutes): a new card's
+  first Hard / Good comes back in 10 minutes; Again always means 10 minutes; any later passing grade
+  schedules a day interval.
+- Passing day intervals are kept in order (Anki's rule), so they never read alike on the buttons.
+  (A new card's Hard and Good both read "10 min": the learning step.)
 
 ### 5.4 Setting up FSRS for pre-FSRS cards
 
@@ -513,7 +522,8 @@ overdue card keeps its earlier due). A card never reviewed just becomes due now 
 
 ### 5.6 Card order (FR-R4)
 
-1. Due **Again** repeats (`IntervalDays = 0`), oldest due first.
+1. Due **in-session repeats** (`IntervalDays = 0`: Again, a new card's learning step, Study again),
+   oldest due first.
 2. **New** words, newest first, while the daily new limit allows — only when a limit is set.
 3. Due reviews, **highest retrievability first**: with a backlog, a card that just crossed the
    threshold is cheap to keep and losing recall fastest, while a long-forgotten one loses little more

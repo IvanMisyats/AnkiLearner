@@ -28,15 +28,21 @@ public sealed record FsrsParameters(IReadOnlyList<double> Weights, double Desire
 /// fits weights that way. Days start at UTC midnight (the app's day everywhere); Anki starts them at
 /// 04:00 local time. Where the two boundaries don't split a user's reviews differently (verified on
 /// a European collection) this reproduces Anki's memory states exactly.</item>
-/// <item>Passing intervals are kept in order, as Anki does: Good ≥ Hard + 1 day, Easy ≥ Good + 1.</item>
-/// <item>No learning steps: Again always means "again in 10 minutes", and any passing grade —
-/// a new card's first one included — schedules a (fuzzed) day interval.</item>
+/// <item>Passing day intervals are kept in order, as Anki does: Good ≥ Hard + 1 day, Easy ≥ Good + 1.</item>
+/// <item>One learning step, as Anki's default steps give: a new card's first Hard or Good brings it
+/// back in 10 minutes, its first Easy schedules days. Again always means "again in 10 minutes";
+/// any later passing grade schedules a (fuzzed) day interval. So a new word is seen at least
+/// twice in its first session.</item>
 /// </list>
 /// </summary>
 public static class Fsrs
 {
     /// <summary>"Again" shows the card again within the session after this many minutes.</summary>
     public const int AgainMinutes = 10;
+
+    /// <summary>A new card's first Hard or Good shows it again after this many minutes (one
+    /// learning step) instead of scheduling days straight away.</summary>
+    public const int LearningStepMinutes = 10;
 
     /// <summary>Interval ceiling when the user has not chosen one (Anki's default, ~100 years).</summary>
     public const int DefaultMaxIntervalDays = 36500;
@@ -156,8 +162,9 @@ public static class Fsrs
 
     /// <summary>
     /// Applies one grade. <paramref name="card"/> is null for a card never reviewed. "Again" brings
-    /// the card back in <see cref="AgainMinutes"/>; other grades schedule the fuzzed interval, kept
-    /// in order (Hard &lt; Good &lt; Easy) like Anki so the three buttons never read alike.
+    /// the card back in <see cref="AgainMinutes"/>, and so does a new card's first Hard or Good
+    /// (<see cref="LearningStepMinutes"/>); other grades schedule the fuzzed interval, kept in order
+    /// (Hard &lt; Good &lt; Easy) like Anki so the day intervals on the buttons never read alike.
     /// </summary>
     public static FsrsReview Review(
         FsrsCard? card, ReviewGrade grade, DateTime now, FsrsParameters p, double fuzzUnit)
@@ -171,6 +178,10 @@ public static class Fsrs
         var memory = MemoryAfter(grade);
         if (grade == ReviewGrade.Again)
             return new FsrsReview(memory, 0, now.AddMinutes(AgainMinutes), retrievability);
+        // One learning step: a word seen for the first time comes back within the session; the
+        // same-day review after it schedules days (short-term stability formula).
+        if (card is null && grade is ReviewGrade.Hard or ReviewGrade.Good)
+            return new FsrsReview(memory, 0, now.AddMinutes(LearningStepMinutes), retrievability);
 
         int Plain(ReviewGrade g) => Fuzz(NextInterval(MemoryAfter(g).Stability, p), fuzzUnit, p.MaxIntervalDays);
         var max = Math.Max(1, p.MaxIntervalDays);

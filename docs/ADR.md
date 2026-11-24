@@ -21,6 +21,7 @@
 | [0011](#adr-0011--appenv-edits-apply-without-a-redeploy) | 2026-11-16 | `app.env` edits apply without a redeploy | Accepted |
 | [0012](#adr-0012--review-log) | 2026-11-24 | Review log | Accepted |
 | [0013](#adr-0013--fsrs-6-scheduler) | 2026-11-24 | FSRS-6 scheduler | Accepted |
+| [0014](#adr-0014--one-learning-step-for-new-cards) | 2026-11-24 | One learning step for new cards | Accepted |
 
 ---
 
@@ -249,3 +250,19 @@
   - `EaseFactor` / `Repetitions` are legacy inputs; dropping them is a backlog item.
   - Later re-fits apply to already studied cards going forward only. A full recompute from the log is a backlog item, and so is a per-user day start.
 - **Links:** spec §5, FR-S8, FR-I9, FR-R4; `docs/FSRS_PLAN.md`; `Core/Srs/Fsrs.cs`, `Core/Srs/FsrsSetup.cs`, `Api/Services/FsrsInitializer.cs`.
+
+## ADR-0014 — One learning step for new cards
+- **Status:** Accepted (2026-11-24). Supersedes ADR-0013's "no learning steps".
+- **Context:**
+  - Without learning steps, a new card's first Good scheduled days at once. With weights fitted to the primary user's Anki history, that was about two weeks for a word seen for the first time, with no repeat in the session (1–2 days with the default weights).
+  - Those weights were fitted on Anki reviews where new cards also got same-day learning-step repeats (Anki's default steps are 1 and 10 minutes).
+- **Decision:**
+  - A new card's first Hard or Good brings it back in 10 minutes (`Fsrs.LearningStepMinutes`), with its memory already started from that grade. The same-day review after it uses FSRS's short-term formula and schedules days.
+  - A new card's first Easy still schedules days. Again is 10 minutes as before.
+  - One step, not Anki's two: a new word is seen at least twice in its first session either way, because a first Again also brings it back in 10 minutes.
+- **Consequences:**
+  - About one extra review per new word (at most the daily new limit per day). In exchange, a new word's first day interval rests on a same-day recall.
+  - When nothing else is left, learn-ahead (FR-R9, 20 minutes, as Anki's default) serves the repeat early, possibly right away. That matches Anki, and a session can always be finished.
+  - New-card hints read "10 min / 10 min / 10 min / N d".
+  - The repeat is an interval-0 card, so it is served before new words like any Again repeat (FR-R4).
+- **Links:** spec §5.2–5.3; `Core/Srs/Fsrs.cs`.

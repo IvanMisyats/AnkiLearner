@@ -128,7 +128,7 @@ public class StudyController(
         return new StudyScope(settings, allWords, words);
     }
 
-    // --- selection logic (spec FR-R4/FR-R9): due "Again" repeats, then new words (newest first,
+    // --- selection logic (spec FR-R4/FR-R9): due in-session repeats, then new words (newest first,
     // within a daily limit), then due reviews (highest recall first), then learn-ahead. With no
     // daily limit, new words come after the due reviews instead. ---
 
@@ -143,7 +143,8 @@ public class StudyController(
         var allowance = await NewAllowanceAsync(scope.AllWords, exercise, scope.Settings.DailyNewLimit, now, ct);
         var limited = scope.Settings.DailyNewLimit > 0;
 
-        // An "Again" repeat (or a Study again) is time-sensitive: it comes first.
+        // An in-session repeat (Again, a new card's learning step, a Study again) is time-sensitive:
+        // it comes first.
         var wordId = due.Where(s => s.IntervalDays == 0)
             .OrderBy(s => s.Due).Select(s => (Guid?)s.WordId).FirstOrDefault();
         var isNew = false;
@@ -270,9 +271,16 @@ public class StudyController(
         // Each hint is exactly what that grade would schedule (same fuzz seed as Grade).
         var p = settings.SchedulerParameters();
         var unit = Fsrs.FuzzUnit(word.Id, exercise, card?.LastReviewed);
-        string Hint(ReviewGrade grade) => FormatDays(Fsrs.Review(card, grade, now, p, unit).IntervalDays);
+        string Hint(ReviewGrade grade)
+        {
+            var review = Fsrs.Review(card, grade, now, p, unit);
+            // Interval 0 = back within the session (Again, or a new card's learning step).
+            return review.IntervalDays > 0
+                ? FormatDays(review.IntervalDays)
+                : $"{(int)Math.Round((review.Due - now).TotalMinutes)} min";
+        }
         var intervals = new StudyIntervalsDto(
-            $"{Fsrs.AgainMinutes} min", Hint(ReviewGrade.Hard), Hint(ReviewGrade.Good), Hint(ReviewGrade.Easy));
+            Hint(ReviewGrade.Again), Hint(ReviewGrade.Hard), Hint(ReviewGrade.Good), Hint(ReviewGrade.Easy));
 
         return new StudyCardDto(WordMapper.ToDto(word), prompt, answer, isNew, intervals);
     }

@@ -25,11 +25,11 @@ public class StudyFlowTests(ApiFactory factory) : IClassFixture<ApiFactory>
         Assert.Equal("kat", next.Card.Prompt);
         Assert.Contains("cat", next.Card.Answer);
         Assert.Equal(2, next.Remaining);
-        // FSRS default weights: a new card's first grade schedules Hard 1 d, Good 2 d, Easy 8 d
-        // (fuzzed to 6–10 d; intervals under 2.5 d are not fuzzed).
+        // A new card: Again, Hard and Good bring it back in the session (learning step); Easy
+        // schedules days (FSRS default weights: 8 d, fuzzed to 6–10 d).
         Assert.Equal("10 min", next.Card.Intervals.Again);
-        Assert.Equal("1 d", next.Card.Intervals.Hard);
-        Assert.Equal("2 d", next.Card.Intervals.Good);
+        Assert.Equal("10 min", next.Card.Intervals.Hard);
+        Assert.Equal("10 min", next.Card.Intervals.Good);
         Assert.InRange(int.Parse(next.Card.Intervals.Easy.Replace(" d", "")), 6, 10);
     }
 
@@ -40,12 +40,12 @@ public class StudyFlowTests(ApiFactory factory) : IClassFixture<ApiFactory>
         var first = await CreateWordAsync(client, "bord", "table");
         await CreateWordAsync(client, "stol", "chair");
 
-        // Grade the first word Good → due tomorrow, second word becomes next.
+        // Grade the first word Good → back in 10 minutes (learning step), second word becomes next.
         var afterGrade = await PostAsync<StudyNextResponse>(client, "/api/study/grade",
             new { wordId = first.Id, exercise = "TargetToKnown", grade = "Good" });
         Assert.NotNull(afterGrade.Card);
         Assert.Equal("stol", afterGrade.Card.Prompt);
-        Assert.Equal(1, afterGrade.Remaining);
+        Assert.Equal(2, afterGrade.Remaining); // "stol" + the learning-step repeat (learn-ahead)
 
         // Direction is tracked independently: KnownToTarget still has 2 new cards.
         var counts = await GetAsync<List<StudyCountsDto>>(client, "/api/study/counts");

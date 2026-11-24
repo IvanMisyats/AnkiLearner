@@ -214,7 +214,7 @@ public class WordsController(
                     state.Stability = memory.Stability;
                     state.Difficulty = memory.Difficulty;
                     state.LastReviewed = now;
-                    // Already in an Again repeat (interval 0) = the same forgetting, not a new lapse.
+                    // Already in an in-session repeat (interval 0) = not a forgotten review card.
                     if (state.IntervalDays > 0) state.Lapses += 1;
                 }
                 state.IntervalDays = 0;
